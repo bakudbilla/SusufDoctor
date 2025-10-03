@@ -19,8 +19,8 @@ Click this button to launch the notebook:https://colab.research.google.com/drive
 ### Option 2: Running on Vscode
 - Clone repository
 ```bash
-!git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
-!pip install -r requirements.txt
+- git clone https://github.com/your-username/your-repo-name.git
+- cd SusufDoctor
+- pip install -r requirements.txt
 ```
 - Run the notebook file
