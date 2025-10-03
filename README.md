@@ -9,7 +9,6 @@ Key features:
 - **`TransformerDecoder`** for sequence-to-sequence text generation  
 - Integrated **tokenizer** for handling medical text vocabulary  
 - End-to-end training, evaluation, and inference pipeline  
-- **Runs entirely on Google Colab** – no local setup required  
 
 ## Repository  
 GitHub repo:  https://github.com/bakudbilla/SusufDoctor/
