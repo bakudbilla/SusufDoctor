@@ -4,6 +4,8 @@ It implements the **automatic radiology report generation system** using deep le
 
 The Chexpert plus dataset was used for this project. It was then processed into the longitudinal format, suitable for both single report generation and longitudinal. Dataset can be found here: https://aimi.stanford.edu/datasets/chexpert-plus
 
+Initial Software solution Demmo can be found here: https://youtu.be/lUa4ap6wx6A
+
 Key features:  
 - Custom **`FuseEmbeddingsLayer`** for multimodal feature fusion  
 - **`TransformerDecoder`** for sequence-to-sequence text generation  
