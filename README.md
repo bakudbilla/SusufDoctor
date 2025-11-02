@@ -12,12 +12,6 @@ Figma Design here: https://www.figma.com/design/x4BV86NXe2AFrBRMU13sUo/SusufDoct
 
 Susuf Doctor Web App: https://susuf-doctor.vercel.app/
 
-Key features:  
-- Custom **`FuseEmbeddingsLayer`** for multimodal feature fusion  
-- **`TransformerDecoder`** for sequence-to-sequence text generation  
-- Integrated **tokenizer** for handling medical text vocabulary  
-- End-to-end training, evaluation, and inference pipeline  
-
 ## Repository  
 GitHub repo:  https://github.com/bakudbilla/SusufDoctor/
 
