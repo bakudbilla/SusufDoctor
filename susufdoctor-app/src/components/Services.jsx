@@ -1,15 +1,17 @@
 import { motion } from "framer-motion";
 import { SlideLeft } from "../utils/animations";
+import report from "../assets/report.png"
+import gradcam from "../assets/Gradcam.jpeg"
 
 export default function Services() {
   const services = [
     {
-      img: "/src/assets/report.png",
+      img: report,
       title: "Report Generation",
       desc: "Automatically generate preliminary reports using standardized templates. Saves time, reduces errors, and enhances diagnostic accuracy."
     },
     {
-      img: "/src/assets/Gradcam.jpeg",
+      img:{gradcam},
       title: "Gradcam Visualization",
       desc: "Instantly visualize the exact areas the AI focuses on within the image. Enhances diagnostic confidence and communication with clinicians."
     },
