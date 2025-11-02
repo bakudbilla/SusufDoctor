@@ -9,6 +9,7 @@ Initial Software solution Demmo can be found here: https://youtu.be/lUa4ap6wx6A
 Final Solution Demo : https://drive.google.com/drive/folders/1gImvbdYVC4rdFb_jOS-51BmFvxBIpgDM
 
 Figma Design here: https://www.figma.com/design/x4BV86NXe2AFrBRMU13sUo/SusufDoctor?node-id=0-1&t=8XOOY7tIJ7egppzp-1
+
 Susuf Doctor Web App: https://susuf-doctor.vercel.app/
 
 Key features:  
