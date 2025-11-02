@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 import pattern from '../assets/Shape.png';
 import CompareSection from './CompareSection';
+import  Homeimage from '../assets/xray4.png'
+
 
 export default function Hero() {
   return (
@@ -46,7 +48,7 @@ export default function Hero() {
 
         <div className="flex-1 flex justify-center mb-6 md:mb-0 relative">
           <motion.img
-            src="/src/assets/xray4.png"
+            src={Homeimage}
             alt="Doctor with X-ray"
             className="w-full max-w-lg sm:max-w-xl md:max-w-2xl h-auto object-cover rounded-2xl"
             initial={{ y: 0 }}
