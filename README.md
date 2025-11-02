@@ -105,8 +105,6 @@ uvicorn main:app --reload
 
 This document provides a complete guide to setting up, configuring, and deploying the **SuSufDoctor React frontend** built with **Vite**.
 
----
-
 1. Prerequisites
 
 Before running the project, ensure that you have the following installed:
@@ -116,8 +114,6 @@ Before running the project, ensure that you have the following installed:
 - Git  
 - A backend API (FastAPI or deployed API URL)  
 
----
-
 2. Clone the Repository
 
 If you haven’t already, clone the project from GitHub:
@@ -125,15 +121,15 @@ If you haven’t already, clone the project from GitHub:
 ```
 git clone https://github.com/bakudbilla/SusufDoctor.git
 ```
-3.Navigate to directory
+3. Navigate to directory
 ```
-    cd SusufDoctor/susufdoctor-app
+cd SusufDoctor/susufdoctor-app
 ```
 4. Install npm  packages
-   ```
-   npm install
-   ```
+```
+npm install
+```
 5. Run the Development Server
-   ```
-   npm run dev
-   ```
+```
+npm run dev
+```
