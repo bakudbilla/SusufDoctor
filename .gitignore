@@ -1,0 +1,17 @@
+# Environment variables
+.env
+
+# Python virtual environment
+venv/
+__pycache__/
+
+# Bytecode and cache
+*.pyc
+*.pyo
+*.pyd
+
+# System files
+.DS_Store
+
+# Google credentials (just in case)
+*.json
