@@ -1,4 +1,6 @@
 import checkmark from "../assets/checkmark.png";
+import whatspecial from "../assets/whatspecial.png"
+
 
 export default function WhatsSpecial() {
   const features = [
@@ -17,7 +19,7 @@ export default function WhatsSpecial() {
           {/* IMAGE HIDDEN ON SMALL SCREENS */}
           <div className="hidden lg:block lg:absolute lg:-left-44 lg:top-1/2 lg:-translate-y-1/2 w-full lg:w-[480px]">
             <img
-              src="/src/assets/whatspecial.png"
+              src={whatspecial}
               alt="Doctors discussing"
               className="w-full h-[430px] object-cover shadow-xl"
             />
