@@ -1,18 +1,24 @@
 # SusufDoctor (https://susuf-doctor.vercel.app/)
-“SusufDoctor”, is an intelligent web application that replicates the radiologist’s workflow by generating comprehensive chest X-ray reports. It integrates current and prior scans with patient metadata for longitudinal, context-aware analysis, uses a single transformer decoder to generate a full radiology report and provides visual explanations through Grad-CAM for transparency. The system further incorporates Reinforcement Learning with Human Feedback (RLHF), allowing radiologists to refine reports and continuously improve performance, making it a practical solution for reducing workload and enhancing diagnostic support, especially in resource-limited settings such as Ghana and Rwanda where patient to radiologist ratio is low.
-It implements the **automatic radiology report generation system** using deep learning. It combines **custom embeddings fusion** and a **Transformer-based decoder** to generate structured and clinically coherent radiology reports from input data (images, prior reports, or both).  
+“SusufDoctor”, is an intelligent web application that replicates the radiologist’s workflow by generating comprehensive chest X-ray reports. It integrates current and prior scans with patient metadata for longitudinal, context-aware analysis, uses a single transformer decoder to generate a full radiology report. 
+
 <img width="1365" height="611" alt="Screenshot 2025-11-07 181238" src="https://github.com/user-attachments/assets/35657c32-16b2-4c62-85ad-3496973b91e7" />
 
+ In the application, The Radiologist Dashboard is where reports are generated and patient data is managed
+ 
+<img width="1361" height="526" alt="image" src="https://github.com/user-attachments/assets/6f6c366c-9cbd-4731-a87b-e8f48bb5adb0" />
 
 The Chexpert plus dataset was used for this project. It was then processed into the longitudinal format, suitable for both single report generation and longitudinal. Dataset can be found here: https://aimi.stanford.edu/datasets/chexpert-plus
 
-Initial Software solution Demmo can be found here: https://youtu.be/lUa4ap6wx6A
+- Initial Software solution Demmo can be found here: https://youtu.be/lUa4ap6wx6A
 
-Final Solution Demo : https://drive.google.com/drive/folders/1gImvbdYVC4rdFb_jOS-51BmFvxBIpgDM
+- Final Solution Demo : https://drive.google.com/drive/folders/1gImvbdYVC4rdFb_jOS-51BmFvxBIpgDM
 
-Figma Design here: https://www.figma.com/design/x4BV86NXe2AFrBRMU13sUo/SusufDoctor?node-id=0-1&t=8XOOY7tIJ7egppzp-1
+- Figma Design here: https://www.figma.com/design/x4BV86NXe2AFrBRMU13sUo/SusufDoctor?node-id=0-1&t=8XOOY7tIJ7egppzp-1
 
-Susuf Doctor Web App: https://susuf-doctor.vercel.app/
+- Susuf Doctor Web App: https://susuf-doctor.vercel.app/
+  
+- Susuf Doctor backend(Fast api): https://susufdoctor-model-api.onrender.com
+
 
 ## Repository  
 GitHub repo:  https://github.com/bakudbilla/SusufDoctor/
