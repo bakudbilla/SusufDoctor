@@ -28,7 +28,7 @@ Click this button to open the notebook on colab: https://colab.research.google.c
 ### Option 2: Running on Vscode
 - Clone repository
 ```bash
-- git clone https://github.com/your-username/your-repo-name.git
+- git clone https://github.com/bakudbilla/SusufDoctor.git
 - cd SusufDoctor
 - pip install -r requirements.txt
 ```
@@ -102,7 +102,6 @@ This document provides a complete guide to setting up, configuring, and deployin
 1. Prerequisites
 
 Before running the project, ensure that you have the following installed:
-
 - Node.js 18+  
 - npm (Node Package Manager)  
 - Git  
