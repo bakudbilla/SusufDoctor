@@ -30,7 +30,6 @@ Click this button to open the notebook on colab: https://colab.research.google.c
 ```
 - Run the notebook file
 
-
 # SuSufDoctor WEP APP SETUP
 
 ## Features
@@ -41,8 +40,6 @@ Click this button to open the notebook on colab: https://colab.research.google.c
 - Patient record management  
 - FastAPI backend with React + Vite frontend  
 - Deployed on Render (backend) and Vercel (frontend)
-
----
 
 ## Tech Stack
 
@@ -55,8 +52,6 @@ Click this button to open the notebook on colab: https://colab.research.google.c
 | Deployment | Render (API) & Vercel (Frontend) |
 | Model | AI-based Radiology Report Generator |
 
----
-
 ## Prerequisites
 
 Before running the project, ensure you have the following installed:
@@ -66,13 +61,6 @@ Before running the project, ensure you have the following installed:
 - Git  
 - Google Cloud Service Account JSON key  
 - Vercel or Render account (for deployment)
-
----
-
-## Folder Structure
-
-
----
 
 ## Backend Setup (FastAPI)
 1. Navigate to the Backend Directory
