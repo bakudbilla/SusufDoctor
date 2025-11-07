@@ -1,4 +1,4 @@
-import ImageUpload  from '../components/image-upload';
+import ImageUpload  from '../components/ImageUpload';
 
 export function UploadPage() {
   return (

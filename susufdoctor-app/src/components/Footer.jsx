@@ -41,9 +41,7 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Services + Legal closer together */}
           <div className="sm:col-span-2 flex justify-start gap-12">
-            {/* Services */}
             <div>
               <h3 className="font-bold text-lg mb-4">Services</h3>
               <ul className="space-y-2">
@@ -60,7 +58,6 @@ export default function Footer() {
               </ul>
             </div>
 
-            {/* Legal */}
             <div>
               <h3 className="font-bold text-lg mb-4">Legal</h3>
               <ul className="space-y-2">

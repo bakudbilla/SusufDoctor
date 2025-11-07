@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import doctor1 from "../assets/doctor1.jpeg";
 import CTA from "./CTA";
 import quotes from "../assets/quotes.png";
-import Stats from "./Stats";
 
 export default function Testimonials() {
   const carouselRef = useRef(null);

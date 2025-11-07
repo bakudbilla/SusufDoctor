@@ -1,5 +1,11 @@
+/* eslint-disable no-useless-catch */
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import whatspecial from "../assets/whatspecial.png";
+import radio from "../assets/radio.png";
+import Loader from "../utils/Loader";
+import logo2 from "../assets/logo2.png";
+import {API_URL} from '../../utils/constant'
 
 export default function Signup() {
   const [userInput, setUserInput] = useState({
@@ -18,7 +24,6 @@ export default function Signup() {
   const [success, setSuccess] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
 
-  const API_BASE_URL = "http://127.0.0.1:8000";
 
   function handleUserInput(e) {
     const { name, value } = e.target;
@@ -27,7 +32,7 @@ export default function Signup() {
     if (errors[name] && hasSubmitted) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
-    
+
     if (errorMsg) setErrorMsg("");
   }
 
@@ -68,9 +73,9 @@ export default function Signup() {
     return newErrors;
   }
 
-  async function handleRegister() {
+  const handleRegister = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -90,7 +95,7 @@ export default function Signup() {
           if (Array.isArray(data.detail)) {
             const firstError = data.detail[0];
             throw new Error(firstError.msg || "Registration failed");
-          } else if (typeof data.detail === 'string') {
+          } else if (typeof data.detail === "string") {
             throw new Error(data.detail);
           }
         } else if (data.message) {
@@ -104,7 +109,7 @@ export default function Signup() {
     } catch (error) {
       throw error;
     }
-  }
+  };
 
   async function handleLogin() {
     try {
@@ -123,7 +128,7 @@ export default function Signup() {
 
       if (!response.ok) {
         if (data.detail) {
-          if (typeof data.detail === 'string') {
+          if (typeof data.detail === "string") {
             throw new Error(data.detail);
           } else if (Array.isArray(data.detail)) {
             throw new Error(data.detail[0]?.msg || "Login failed");
@@ -154,20 +159,20 @@ export default function Signup() {
     e.preventDefault();
     setHasSubmitted(true);
     setErrorMsg("");
-    
+
     const foundErrors = validateInput();
     setErrors(foundErrors);
 
     if (Object.keys(foundErrors).length === 0) {
       setLoading(true);
-      
+
       const authFunction = isLogin ? handleLogin() : handleRegister();
-      
+
       authFunction
         .then(() => {
           setSuccess(true);
           setLoading(false);
-          
+
           if (isLogin) {
             setTimeout(() => {
               window.location.href = "/dashboard";
@@ -197,44 +202,23 @@ export default function Signup() {
 
   return (
     <>
-      {loading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 text-center">
-            <div className="inline-block w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-700 font-semibold">
-              {isLogin ? "Logging in..." : "Creating account..."}
-            </p>
-          </div>
-        </div>
-      )}
+      {loading && <Loader text={isLogin ? "Logging in..." : "Creating account..."} />}
 
-      {success && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 text-center max-w-md">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <p className="text-gray-700 font-semibold text-lg">
-              {isLogin ? "Login Successful!" : "Account Created Successfully!"}
-            </p>
-            <p className="text-gray-500 text-sm mt-2">
-              {isLogin ? "Redirecting to dashboard..." : "Please login to continue..."}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 via-teal-50 to-cyan-100 px-4 py-8">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-cyan-50 via-teal-50 to-cyan-100 px-4 py-8">
         <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl grid grid-cols-1 md:grid-cols-2 overflow-hidden">
-          
-          <div className="p-8 md:p-12 flex flex-col">
-            <div className="mb-8">
+          <div className="p-8 md:p-12 flex flex-col relative">
+            <div className="absolute top-2 left-2">
+              <img src={logo2} alt="Logo" className="h-14 w-auto" />
+            </div>
+            <div className="mb-8 mt-8">
               <div className="flex items-center justify-between mb-8">
                 <h1 className="text-4xl font-bold text-blue-500">SusufDoctor</h1>
                 <div className="flex items-center gap-3">
-                  <span className={`text-sm font-medium ${!isLogin ? 'text-gray-900' : 'text-gray-400'}`}>
+                  <span
+                    className={`text-sm font-medium ${
+                      !isLogin ? "text-gray-900" : "text-gray-400"
+                    }`}
+                  >
                     Sign Up
                   </span>
                   <button
@@ -244,26 +228,35 @@ export default function Signup() {
                       setHasSubmitted(false);
                       setErrorMsg("");
                     }}
-                    className={`relative w-14 h-7 rounded-full transition-colors ${
-                      isLogin ? 'bg-blue-500' : 'bg-gray-300'
+                    className={`relative w-14 h-7 rounded-full cursor-pointer transition-colors ${
+                      isLogin ? "bg-blue-500" : "bg-gray-300"
                     }`}
                   >
-                    <div className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-300 ${
-                      isLogin ? 'translate-x-7' : 'translate-x-0'
-                    }`}></div>
+                    <div
+                      className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-300 ${
+                        isLogin ? "translate-x-7" : "translate-x-0"
+                      }`}
+                    ></div>
                   </button>
-                  <span className={`text-sm font-medium ${isLogin ? 'text-gray-900' : 'text-gray-400'}`}>
+                  <span
+                    className={`text-sm font-medium ${
+                      isLogin ? "text-gray-900" : "text-gray-400"
+                    }`}
+                  >
                     Login
                   </span>
                 </div>
               </div>
-              
+
               <p className="text-gray-600 text-sm">
-                {isLogin ? "Welcome back, Radiologist" : "Create your radiologist account"}
+                {isLogin
+                  ? "Welcome back, Radiologist"
+                  : "Create your radiologist account"}
               </p>
             </div>
 
-            <div className={`flex-1 flex flex-col ${isLogin ? 'space-y-5' : 'space-y-4'}`}>
+            {/* Form Fields */}
+            <div className={`flex-1 flex flex-col ${isLogin ? "space-y-5" : "space-y-4"}`}>
               {!isLogin && (
                 <>
                   <div>
@@ -311,9 +304,7 @@ export default function Signup() {
                     errors.email ? "border-red-500" : "border-gray-200"
                   } rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition`}
                 />
-                {errors.email && (
-                  <p className="text-xs text-red-500 mt-1">{errors.email}</p>
-                )}
+                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
               </div>
 
               <div className="relative">
@@ -389,12 +380,13 @@ export default function Signup() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 p-12">
+          {/* Right Section (Image) */}
+          <div className="hidden md:flex items-center justify-center bg-linear-to-br from-blue-500 to-blue-600 p-12">
             <div className="w-full max-w-md">
-              <img 
-                src="https://img.freepik.com/free-vector/doctors-concept-illustration_114360-1515.jpg" 
-                alt="Medical professionals" 
-                className="w-full h-auto drop-shadow-2xl"
+              <img
+                src={isLogin ? whatspecial : radio}
+                alt="Medical professionals"
+                className={`w-full h-auto drop-shadow-2xl ${!isLogin && "animate-float"}`}
               />
               <div className="mt-8 text-center text-white">
                 <h2 className="text-2xl font-bold mb-2">AI-Powered Radiology Reports</h2>

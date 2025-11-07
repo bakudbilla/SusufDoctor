@@ -1,33 +1,38 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Upload,
   X,
   FileImage,
   CheckCircle2,
   AlertCircle,
-  Search,
-  Plus,
-  Loader,
   File,
   Download,
+  Loader,
+  Edit2,
+  Save,
+  Eye,
 } from "lucide-react";
+import {API_URL} from '../../utils/constant'
 
-export default function ImageUpload() {
-  const [mode, setMode] = useState("select");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedPatient, setSelectedPatient] = useState(null);
+export default function PatientForm({ 
+  mode, 
+  selectedPatient, 
+  onBack, 
+  initialFormData = null 
+}) {
+  const [formData, setFormData] = useState(
+    initialFormData || {
+      patientName: "",
+      age: "",
+      sex: "",
+      bmi: "",
+      xrayView: "",
+      patientId: null,
+    }
+  );
+  const [errors, setErrors] = useState({});
   const [xrayFile, setXrayFile] = useState(null);
   const [reportFile, setReportFile] = useState(null);
-  const [formData, setFormData] = useState({
-    patientName: "",
-    age: "",
-    sex: "",
-    bmi: "",
-    xrayView: "",
-    patientId: null,
-  });
-  const [errors, setErrors] = useState({});
   const [xrayDragActive, setXrayDragActive] = useState(false);
   const [reportDragActive, setReportDragActive] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
@@ -36,59 +41,54 @@ export default function ImageUpload() {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [firestoreId, setFirestoreId] = useState(null);
   const [apiError, setApiError] = useState(null);
+  const [loadingPriorReport, setLoadingPriorReport] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [reportText, setReportText] = useState("");
+  const [originalReportText, setOriginalReportText] = useState("");
 
   const xrayFileInputRef = useRef(null);
   const reportFileInputRef = useRef(null);
 
-  // Mock patient data for demo
-  const mockPatientDatabase = [
-    { id: "P-2024-001", name: "John Doe", age: 45, sex: "Male", bmi: 24.5, lastVisit: "2024-10-02", scans: 2 },
-    { id: "P-2024-002", name: "Jane Smith", age: 38, sex: "Female", bmi: 22.1, lastVisit: "2024-10-01", scans: 1 },
-    { id: "P-2024-003", name: "Bob Johnson", age: 62, sex: "Male", bmi: 27.3, lastVisit: "2024-09-30", scans: 3 },
-  ];
-
-  // 🔎 Patient search
-  const handleSearchPatient = (query) => {
-    setSearchTerm(query);
-    if (query.trim()) {
-      const results = mockPatientDatabase.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.id.toLowerCase().includes(query.toLowerCase())
-      );
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
+  // Load prior report for returning patients
+  useEffect(() => {
+    if (mode === "update" && selectedPatient?.patient_id) {
+      fetchPriorReport(selectedPatient.patient_id);
     }
-  };
+  }, [mode, selectedPatient]);
 
-  // 👩‍⚕️ Select existing patient
-  const selectExistingPatient = (patient) => {
-    setSelectedPatient(patient);
-    setFormData({
-      patientName: patient.name,
-      age: patient.age.toString(),
-      sex: patient.sex,
-      bmi: patient.bmi.toString(),
-      xrayView: "",
-      patientId: patient.id,
-    });
-    setMode("existing");
-    setSearchTerm("");
-    setSearchResults([]);
-  };
+  const fetchPriorReport = async (patientId) => {
+    try {
+      setLoadingPriorReport(true);
+      const token = localStorage.getItem("access_token");
 
-  const startNewPatient = () => {
-    setSelectedPatient(null);
-    setFormData({
-      patientName: "",
-      age: "",
-      sex: "",
-      bmi: "",
-      xrayView: "",
-      patientId: null,
-    });
-    setMode("new");
+      const response = await fetch(`${API_URL}/patients/${patientId}/visits`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const visits = data.data?.visits || [];
+        
+        // Get the most recent visit
+        if (visits.length > 0) {
+          const latestVisit = visits[0];
+          setReportFile({
+            id: latestVisit.visit_id,
+            name: `Prior Report - ${latestVisit.date}`,
+            url: latestVisit.report_url,
+            isPrior: true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching prior report:", error);
+    } finally {
+      setLoadingPriorReport(false);
+    }
   };
 
   const handleChange = (key, value) => {
@@ -96,7 +96,6 @@ export default function ImageUpload() {
     setErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
-  // 📂 Handle drag events
   const handleXrayDrag = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -113,7 +112,6 @@ export default function ImageUpload() {
     }
   }, []);
 
-  // 📸 Validate X-ray file
   const handleXrayFiles = (fileList) => {
     const file = fileList[0];
     const validTypes = ["application/dicom", "image/png", "image/jpeg", "image/jpg"];
@@ -141,7 +139,6 @@ export default function ImageUpload() {
     setErrors((prev) => ({ ...prev, xrayFile: "" }));
   };
 
-  // 📄 Validate report file
   const handleReportFiles = (fileList) => {
     const file = fileList[0];
     if (file.type !== "application/pdf") {
@@ -158,11 +155,11 @@ export default function ImageUpload() {
       size: file.size,
       type: file.type,
       file,
+      isPrior: false,
     });
     setErrors((prev) => ({ ...prev, reportFile: "" }));
   };
 
-  // 🧩 Validate form
   const validateForm = () => {
     const newErrors = {};
     if (!formData.patientName) newErrors.patientName = "Patient Name is required";
@@ -175,7 +172,6 @@ export default function ImageUpload() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // 🚀 Generate report
   const handleGenerateReport = async () => {
     if (!validateForm()) return;
     setIsGenerating(true);
@@ -185,12 +181,17 @@ export default function ImageUpload() {
     try {
       const formDataToSend = new FormData();
       formDataToSend.append("xray_image", xrayFile.file);
-      if (reportFile) formDataToSend.append("prior_report", reportFile.file);
+      
+      // Only append prior_report if it's a file (not a prior report from database)
+      if (reportFile && reportFile.file && !reportFile.isPrior) {
+        formDataToSend.append("prior_report", reportFile.file);
+      }
+      
       formDataToSend.append("bmi", formData.bmi);
       formDataToSend.append("age", formData.age);
       formDataToSend.append("sex", formData.sex);
       formDataToSend.append("view_type", formData.xrayView);
-      formDataToSend.append("patient_name", formData.patientName); // ✅ FIX
+      formDataToSend.append("patient_name", formData.patientName);
 
       const token = localStorage.getItem("access_token");
       if (!token) throw new Error("Please login to generate reports");
@@ -222,31 +223,100 @@ export default function ImageUpload() {
       if (!pdfUrl) throw new Error("No PDF URL found in API response");
 
       setPdfUrl(pdfUrl);
-      setFirestoreId(result.data?.firestore_id);
+      setFirestoreId(result.data?.patient_id);
+      setReportText(result.data?.report_text || "");
+      setOriginalReportText(result.data?.report_text || "");
       setReportGenerated(true);
       setSubmitStatus({
         type: "success",
-        message: "✅ Report generated successfully! You can now view or download the PDF.",
+        message: "Report generated successfully! You can now view, edit, or download the PDF.",
       });
     } catch (error) {
       console.error("Error generating report:", error);
       setApiError(error.message);
       setSubmitStatus({
         type: "error",
-        message: `❌ Failed to generate report: ${error.message}`,
+        message: `Failed to generate report: ${error.message}`,
       });
     } finally {
       setIsGenerating(false);
     }
   };
 
+  const handleEditReport = () => {
+    setIsEditMode(true);
+  };
+
+  const handleSaveAndDownload = async () => {
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      
+      const formDataToSend = new FormData();
+      formDataToSend.append("report_text", reportText);
+      formDataToSend.append("firestore_id", firestoreId);
+      formDataToSend.append("is_edit", "true");
+      formDataToSend.append("patient_name", formData.patientName);
+      formDataToSend.append("age", formData.age);
+      formDataToSend.append("sex", formData.sex);
+      formDataToSend.append("bmi", formData.bmi);
+      formDataToSend.append("view_type", formData.xrayView);
+
+      const response = await fetch("http://localhost:8000/predict/", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formDataToSend,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        let message = "Unknown API error";
+        try {
+          const data = JSON.parse(text);
+          message = data.detail?.[0]?.msg || data.message || JSON.stringify(data.detail || data);
+        } catch {
+          message = text;
+        }
+        throw new Error(message);
+      }
+
+      const result = await response.json();
+      
+      setOriginalReportText(reportText);
+      setIsEditMode(false);
+      setPdfUrl(result.data?.generated_report_url); // Update with new PDF URL
+      
+      setSubmitStatus({
+        type: "success",
+        message: "Report saved! Downloading updated PDF...",
+      });
+
+      setTimeout(() => {
+        handleDownloadReport();
+      }, 500);
+    } catch (error) {
+      setSubmitStatus({
+        type: "error",
+        message: `Failed to save report: ${error.message}`,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setReportText(originalReportText);
+    setIsEditMode(false);
+  };
+
   const handleDownloadReport = () => {
     if (pdfUrl) {
       const link = document.createElement("a");
       link.href = pdfUrl;
-      link.download = `medical-report-${formData.patientId || "new"}-${Date.now()}.pdf`;
-      link.target = "_blank";
+      link.download = `medical-report-${formData.patientName}-${Date.now()}.pdf`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
     }
   };
 
@@ -254,122 +324,21 @@ export default function ImageUpload() {
     if (pdfUrl) window.open(pdfUrl, "_blank");
   };
 
-  // --- UI COMPONENTS BELOW ---
-  if (mode === "select") {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6">
-        <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-4xl font-bold text-blue-600 mb-4">Patient Check-In</h1>
-          <p className="text-slate-600 mb-10">
-            Is this a new patient or a returning visit?
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <button
-              onClick={startNewPatient}
-              className="group bg-white border-2 border-slate-200 rounded-2xl p-8 hover:border-blue-400 hover:shadow-lg transition-all"
-            >
-              <div className="flex justify-center mb-4">
-                <Plus className="h-10 w-10 text-blue-500" />
-              </div>
-              <h3 className="text-xl font-semibold text-blue-600 mb-2">New Patient</h3>
-              <p className="text-slate-500 text-sm">
-                First-time visit. A new patient ID will be generated.
-              </p>
-            </button>
-
-            <button
-              onClick={() => setMode("search")}
-              className="group bg-white border-2 border-slate-200 rounded-2xl p-8 hover:border-green-400 hover:shadow-lg transition-all"
-            >
-              <div className="flex justify-center mb-4">
-                <Search className="h-10 w-10 text-green-500" />
-              </div>
-              <h3 className="text-xl font-semibold text-green-600 mb-2">Returning Patient</h3>
-              <p className="text-slate-500 text-sm">
-                Look up an existing patient record to add a new scan.
-              </p>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🧑‍⚕️ Patient search page
-  if (mode === "search") {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6">
-        <div className="max-w-2xl mx-auto">
-          <button
-            onClick={() => setMode("select")}
-            className="mb-6 text-slate-600 hover:text-slate-800 flex items-center gap-2"
-          >
-            ← Back
-          </button>
-
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8">
-            <h2 className="text-2xl font-semibold text-slate-800 mb-6">Search Patient Records</h2>
-            <input
-              type="text"
-              placeholder="Enter patient name or ID..."
-              value={searchTerm}
-              onChange={(e) => handleSearchPatient(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-green-300"
-            />
-
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {searchResults.length > 0 ? (
-                searchResults.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => selectExistingPatient(p)}
-                    className="w-full text-left p-4 border border-slate-200 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all"
-                  >
-                    <div className="flex justify-between">
-                      <div>
-                        <p className="font-semibold text-slate-800">{p.name}</p>
-                        <p className="text-sm text-slate-600">{p.id}</p>
-                      </div>
-                      <div className="text-right text-sm text-slate-600">
-                        <p>Age: {p.age}</p>
-                        <p>{p.scans} scan{p.scans > 1 ? "s" : ""}</p>
-                        <p className="text-xs">Last visit: {p.lastVisit}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  {searchTerm
-                    ? `No patients found matching "${searchTerm}"`
-                    : "Start typing to search for a patient"}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- Main Upload Page ---
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6">
       <div className="max-w-3xl mx-auto">
         <button
-          onClick={() => setMode("select")}
-          className="mb-6 text-slate-600 hover:text-slate-800 flex items-center gap-2"
+          onClick={onBack}
+          className="mb-6 cursor-pointer text-slate-600 hover:text-slate-800 flex items-center gap-2"
         >
           ← Back
         </button>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8">
-          <h1 className="text-3xl font-bold text-blue-600 mb-6">
+          <h1 className="text-3xl font-bold text-[#0088FF] mb-6">
             {mode === "new" ? "New Patient Registration" : "Patient Visit Update"}
           </h1>
 
-          {/* 🧾 Patient Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-700">Patient Name *</label>
@@ -434,7 +403,7 @@ export default function ImageUpload() {
             </div>
           </div>
 
-          {/* Upload Sections */}
+          {/* Upload X-ray Section */}
           <div className="mt-8">
             <h3 className="text-lg font-semibold text-slate-700 mb-4">Upload X-ray Image</h3>
             <div
@@ -468,7 +437,10 @@ export default function ImageUpload() {
                     <p className="text-xs text-emerald-500">✓ Ready for analysis</p>
                   </div>
                   <button
-                    onClick={() => setXrayFile(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setXrayFile(null);
+                    }}
                     className="p-2 hover:bg-slate-100 rounded-lg"
                   >
                     <X className="h-5 w-5 text-red-400" />
@@ -485,47 +457,145 @@ export default function ImageUpload() {
             </div>
           </div>
 
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4">
-              Upload Reference Report (Optional)
-            </h3>
-            <div
-              className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                reportDragActive ? "border-purple-400 bg-purple-50" : "border-slate-300"
-              }`}
-              onClick={() => reportFileInputRef.current?.click()}
-            >
-              {!reportFile ? (
-                <>
-                  <Upload className="h-14 w-14 mx-auto text-slate-400 mb-3" />
-                  <p className="text-slate-600">
-                    Drag & drop or <span className="text-purple-500 font-semibold">browse</span>
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">PDF format only</p>
-                </>
-              ) : (
-                <div className="flex items-center justify-center gap-4">
-                  <File className="h-14 w-14 text-purple-500" />
-                  <div className="text-left">
-                    <p className="font-medium">{reportFile.name}</p>
-                    <p className="text-xs text-emerald-500">✓ Ready to include</p>
-                  </div>
+          {/* Report Text Editor Section */}
+          {reportGenerated && (
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-700">Generated Report</h3>
+                {!isEditMode && (
                   <button
-                    onClick={() => setReportFile(null)}
-                    className="p-2 hover:bg-slate-100 rounded-lg"
+                    onClick={handleEditReport}
+                    className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
-                    <X className="h-5 w-5 text-red-400" />
+                    <Edit2 className="h-4 w-4" />
+                    Edit Report
                   </button>
+                )}
+              </div>
+              
+              {isEditMode ? (
+                <div className="space-y-4">
+                  <textarea
+                    value={reportText}
+                    onChange={(e) => setReportText(e.target.value)}
+                    className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    placeholder="Edit the report text here..."
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSaveAndDownload}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader className="h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          Save & Download PDF
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg whitespace-pre-wrap text-sm max-h-64 overflow-y-auto">
+                  {reportText}
                 </div>
               )}
-              <input
-                ref={reportFileInputRef}
-                type="file"
-                className="hidden"
-                accept="application/pdf"
-                onChange={(e) => e.target.files && handleReportFiles(e.target.files)}
-              />
             </div>
+          )}
+
+          {/* Prior Report Section */}
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-slate-700 mb-4">
+              {mode === "update" ? "Prior Report from Latest Visit" : "Reference Report (Optional)"}
+            </h3>
+            
+            {mode === "update" ? (
+              // For returning patients - show prior report status
+              <>
+                {loadingPriorReport ? (
+                  <div className="flex items-center justify-center p-8 bg-slate-50 rounded-xl">
+                    <Loader className="h-5 w-5 animate-spin text-blue-500 mr-2" />
+                    <span>Loading prior report...</span>
+                  </div>
+                ) : reportFile && reportFile.isPrior ? (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        <div>
+                          <p className="font-medium text-green-900">{reportFile.name}</p>
+                          <p className="text-xs text-green-700">Automatically loaded from patient records</p>
+                        </div>
+                      </div>
+                      <a
+                        href={reportFile.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-sm font-medium"
+                      >
+                        View
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-sm">No prior reports found for this patient</p>
+                )}
+              </>
+            ) : (
+              // For new patients - allow manual upload
+              <div
+                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
+                  reportDragActive ? "border-purple-400 bg-purple-50" : "border-slate-300"
+                }`}
+                onClick={() => reportFileInputRef.current?.click()}
+              >
+                {!reportFile ? (
+                  <>
+                    <Upload className="h-14 w-14 mx-auto text-slate-400 mb-3" />
+                    <p className="text-slate-600">
+                      Drag & drop or <span className="text-purple-500 font-semibold">browse</span>
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">PDF format only</p>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center gap-4">
+                    <File className="h-14 w-14 text-purple-500" />
+                    <div className="text-left">
+                      <p className="font-medium">{reportFile.name}</p>
+                      <p className="text-xs text-emerald-500">Ready to include</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReportFile(null);
+                      }}
+                      className="p-2 hover:bg-slate-100 rounded-lg"
+                    >
+                      <X className="h-5 w-5 text-red-400" />
+                    </button>
+                  </div>
+                )}
+                <input
+                  ref={reportFileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept="application/pdf"
+                  onChange={(e) => e.target.files && handleReportFiles(e.target.files)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Status */}
@@ -569,17 +639,17 @@ export default function ImageUpload() {
               <>
                 <button
                   onClick={handleViewReport}
-                  className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-green-400 to-green-600 hover:scale-105 transform transition-all"
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-green-400 to-green-600 hover:scale-105 transform transition-all"
                 >
-                  <FileImage className="h-4 w-4" />
-                  View Report
+                  <Eye className="h-4 w-4" />
+                  View PDF
                 </button>
                 <button
                   onClick={handleDownloadReport}
-                  className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all"
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all"
                 >
                   <Download className="h-4 w-4" />
-                  Download Report
+                  Download PDF
                 </button>
               </>
             )}

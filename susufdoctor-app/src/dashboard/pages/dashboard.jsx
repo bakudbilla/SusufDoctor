@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -7,63 +8,154 @@ import {
 import {
   Activity,
   CheckCircle,
-  Clock,
+  LogOut,
+  Loader,
 } from "lucide-react";
 import PatientsPerMonthChart from "../components/PatientChart";
 import FiltersQuickAction from "../components/FiltersQuickAction";
 
-const mockStats = {
-  totalScans: 1247,
-  pendingReports: 23,
-  completedToday: 15,
-  accuracyRate: 94.2,
-};
-
 export function Dashboard() {
+  const [radiologistName, setRadiologistName] = useState("Dr. Unknown");
+  const [stats, setStats] = useState({
+    totalScans: 0,
+    completedToday: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Try to get radiologist name from localStorage first
+    const storedName = localStorage.getItem("radiologist_name");
+    if (storedName) {
+      setRadiologistName(storedName);
+    }
+    
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("access_token");
+      
+      // Fetch user info from auth/me endpoint
+      try {
+        const userResponse = await fetch("http://localhost:8000/auth/me", {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const fullName = userData.data?.full_name || localStorage.getItem("radiologist_name") || "Dr. Unknown";
+          setRadiologistName(fullName);
+          localStorage.setItem("radiologist_name", fullName);
+        }
+      } catch (e) {
+        console.log("Auth/me endpoint not available, using localStorage");
+        // If endpoint fails, name from localStorage is already set
+      }
+
+      // Fetch dashboard patients for stats
+      const patientsResponse = await fetch("http://localhost:8000/patients", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (patientsResponse.ok) {
+        const patientsData = await patientsResponse.json();
+        const patientsList = patientsData.data || [];
+        
+        // Calculate stats
+        const totalScans = patientsList.length;
+        const today = new Date().toISOString().split("T")[0];
+        const completedToday = patientsList.filter(p => {
+          const createdDate = p.latest_visit?.split("T")[0];
+          return createdDate === today;
+        }).length;
+
+        setStats({
+          totalScans,
+          completedToday,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("radiologist_name");
+    window.location.href = "/login";
+  };
 
   const statsCards = [
     {
-      title: "Total Scans",
-      value: mockStats.totalScans,
+      title: "Total number of Patients",
+      value: stats.totalScans,
       icon: Activity,
-      color: "text-blue-800",
       bgColor: '#00B7EB'
     },
     {
-      title: "Average Model Accuracy",
-      value: mockStats.accuracyRate + "%",
-      icon: Clock,
-      color: "text-yellow-600",
-      bgColor: '#E91E63'
-    },
-    {
-      title: "Number of X-rays Uploaded",
-      value: mockStats.completedToday,
+      title: "Reports Generated Today",
+      value: stats.completedToday,
       icon: CheckCircle,
-      color: "text-green-500",
       bgColor: '#FFD700'
     },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#DFFBFA]">
+        <Loader className="animate-spin text-blue-600" size={32} />
+        <span className="ml-2 text-gray-600">Loading dashboard...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 bg-[#DFFBFA] min-h-screen p-4 sm:p-6 md:p-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
+        <div className='pt-4 md:pt-0'>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-[#0088FF]">
-            Welcome back, Dr. Akudbilla
+            Welcome back, {radiologistName}
           </h1>
           <p className="text-muted-foreground text-sm md:text-base">
             Here's what's happening with your radiology practice today.
           </p>
         </div>
-
+        <button
+          onClick={handleLogout}
+          className="group flex items-center cursor-pointer gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg 
+             transition-all duration-300 h-fit transform hover:scale-105 active:scale-95"
+        >
+          <LogOut className="h-4 w-4 transition-transform duration-300 text-white group-hover:rotate-12 group-hover:translate-x-1" />
+          <span className="group-hover:animate-pulse">Logout</span>
+        </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
         {statsCards.map((stat, idx) => {
           const Icon = stat.icon;
           return (
-            <Card key={idx} className='shadow-sm hover:shadow-md transition-all cursor-pointer' style={{ backgroundColor: stat.bgColor }}>
+            <Card key={idx} className='
+              shadow-md 
+              transition-all 
+              duration-300 
+              transform 
+              hover:scale-105 
+              hover:shadow-xl 
+              hover:-translate-y-1 
+              cursor-pointer
+              relative
+              overflow-hidden' style={{ backgroundColor: stat.bgColor }}
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-white">{stat.title}</CardTitle>
                 <Icon className="h-4 w-4 text-white" />

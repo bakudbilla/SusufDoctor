@@ -48,7 +48,7 @@ export default function Hero() {
 
         <div className="flex-1 flex justify-center mb-6 md:mb-0 relative">
           <motion.img
-            src={Homeimage}
+          src={Homeimage}
             alt="Doctor with X-ray"
             className="w-full max-w-lg sm:max-w-xl md:max-w-2xl h-auto object-cover rounded-2xl"
             initial={{ y: 0 }}

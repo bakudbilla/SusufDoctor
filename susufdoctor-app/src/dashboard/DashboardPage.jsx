@@ -2,11 +2,8 @@ import { useState } from 'react';
 import { Navigation } from './components/layout/navigation';
 import { Dashboard } from './pages/dashboard';
 import { UploadPage } from './pages/upload-page';
-import { ReportsPage } from './pages/reports-page';
 import { PatientsPage } from './pages/patients-page';
-import { NotificationsPage } from './pages/notifications-page';
-import { AIModelPage } from './pages/ai-model-page';
-import { FeedbackPage } from './pages/feedback-page';
+import Settings from './pages/settings'
 
 export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -17,16 +14,10 @@ export default function DashboardPage() {
         return <Dashboard onNavigate={setCurrentPage} />;
       case 'upload':
         return <UploadPage />;
-      case 'reports':
-        return <ReportsPage />;
       case 'patients':
         return <PatientsPage />;
-      case 'notifications':
-        return <NotificationsPage />;
-      case 'ai-model':
-        return <AIModelPage />;
-      case 'feedback':
-        return <FeedbackPage />;
+      case 'settings':
+        return <Settings />
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }

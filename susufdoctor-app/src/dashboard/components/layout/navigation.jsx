@@ -1,15 +1,7 @@
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { 
-  Brain, 
-  Upload, 
-  Users, 
-  Home,
-  Settings,
-  User,
-  Menu,
-  X
-} from 'lucide-react';
+import logo from '../../../assets/logo2.png'
+import { Upload, Users, Home, Settings, User, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
@@ -30,9 +22,13 @@ export function Navigation({ currentPage, onNavigate }) {
     <>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-50 lg:hidden  p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground"
-      > 
-        {isOpen ? <X className="h-6 w-6 text-[#0088FF]" /> : <Menu className="h-6 w-6 text-[#0088FF]" />}
+        className="fixed top-4 left-4 z-50 lg:hidden p-2 rounded-lg bg-white shadow-md border border-gray-200 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#0088FF] transition-all duration-200"
+      >
+        {isOpen ? (
+          <X className="h-6 w-6 text-[#0088FF]" />
+        ) : (
+          <Menu className="h-6 w-6 text-[#0088FF]" />
+        )}
       </button>
 
       {isOpen && (
@@ -49,12 +45,11 @@ export function Navigation({ currentPage, onNavigate }) {
       >
         <div className="flex h-16 items-center border-b px-4">
           <div className="flex items-center space-x-2">
-            <Brain className="h-6 w-6 text-[#0088FF]" />
+            <img src={logo} alt='logo' className='h-15'/>
             <span className="text-xl font-dynapuff text-[#0088FF]">Susuf Doctor</span>
           </div>
         </div>
 
-        {/* Navigation items */}
         <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -91,7 +86,7 @@ export function Navigation({ currentPage, onNavigate }) {
               <p className="text-sm font-medium truncate">Dr. Awinpang Bernice</p>
               <p className="text-xs text-muted-foreground truncate">Radiologist</p>
             </div>
-            <Button variant="ghost" size="sm" className="shrink-0">
+            <Button onClick={() => handleNavigate('settings')} variant="ghost" size="sm" className="shrink-0">
               <Settings className="h-4 w-4" />
             </Button>
           </div>
