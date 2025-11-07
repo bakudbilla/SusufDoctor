@@ -5,6 +5,7 @@ import whatspecial from "../assets/whatspecial.png";
 import radio from "../assets/radio.png";
 import Loader from "../utils/Loader";
 import logo2 from "../assets/logo2.png";
+import {API_URL} from '../../utils/constant'
 
 export default function Signup() {
   const [userInput, setUserInput] = useState({
@@ -23,7 +24,6 @@ export default function Signup() {
   const [success, setSuccess] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
 
-  const API_BASE_URL = "http://127.0.0.1:8000";
 
   function handleUserInput(e) {
     const { name, value } = e.target;
@@ -75,7 +75,7 @@ export default function Signup() {
 
   const handleRegister = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

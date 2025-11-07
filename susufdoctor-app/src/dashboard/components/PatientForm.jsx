@@ -12,6 +12,7 @@ import {
   Save,
   Eye,
 } from "lucide-react";
+import {API_URL} from '../../utils/constant'
 
 export default function PatientForm({ 
   mode, 
@@ -61,7 +62,7 @@ export default function PatientForm({
       setLoadingPriorReport(true);
       const token = localStorage.getItem("access_token");
 
-      const response = await fetch(`http://localhost:8000/patients/${patientId}/visits`, {
+      const response = await fetch(`${API_URL}/patients/${patientId}/visits`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Filter, Upload, User, Loader } from "lucide-react";
+import {API_URL} from '../../utils/constant'
 
 const filterOptions = ["All", "Frontal", "Lateral"];
 const sortOptions = [
@@ -30,7 +31,7 @@ export default function FiltersQuickAction() {
       setLoading(true);
       const token = localStorage.getItem("access_token");
       
-      const response = await fetch("http://localhost:8000/patients/dashboard", {
+      const response = await fetch(`${API_URL}/patients/dashboard`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`,

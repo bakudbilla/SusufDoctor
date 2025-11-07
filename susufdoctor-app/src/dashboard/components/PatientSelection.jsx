@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, Plus, Loader2 } from "lucide-react";
 
+
 export default function PatientSelection({ mode, onSelectMode, onSelectExistingPatient }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -20,7 +21,7 @@ export default function PatientSelection({ mode, onSelectMode, onSelectExistingP
       setError("");
       const token = localStorage.getItem("access_token");
       
-      const response = await fetch("http://localhost:8000/patients/", {
+      const response = await fetch(`${API_URL}/patients/`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
