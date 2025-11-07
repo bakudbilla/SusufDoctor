@@ -1,5 +1,5 @@
 # SusufDoctor (https://susuf-doctor.vercel.app/)
-“SusufDoctor”, is an intelligent web application that replicates the radiologist’s workflow by generating comprehensive chest X-ray reports. It integrates current and prior scans with patient metadata for longitudinal, context-aware analysis, uses a single transformer decoder to generate a full radiology report. The Chexpert plus dataset was used for this project. It was then processed into the longitudinal format, suitable for both single report generation and longitudinal. Dataset can be found here: https://aimi.stanford.edu/datasets/chexpert-plus
+SusufDoctor is an intelligent web application that replicates the radiologist’s workflow by generating comprehensive chest X-ray reports. It integrates current and prior scans with patient metadata for longitudinal, context-aware analysis, uses a single transformer decoder to generate a full radiology report. The Chexpert plus dataset was used for this project. It was then processed into the longitudinal format, suitable for both single report generation and longitudinal. Dataset can be found here: https://aimi.stanford.edu/datasets/chexpert-plus
 
 <img width="1365" height="611" alt="Screenshot 2025-11-07 181238" src="https://github.com/user-attachments/assets/35657c32-16b2-4c62-85ad-3496973b91e7" />
 
