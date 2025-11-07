@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
 from dependencies import initialize_gcloud
-from routers import auth_routes, predict_routes
+from routers import auth_routes, predict_routes, patient_routes
+
+# Load environment variables first
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -14,20 +18,23 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Update for production
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize Google Cloud on startup
+# Initialize on startup
 @app.on_event("startup")
 async def startup_event():
+    print("Starting up SuSufDoctor API...")
     initialize_gcloud()
+    print("Google Cloud initialized")
 
 # Include routers
 app.include_router(auth_routes.router)
 app.include_router(predict_routes.router)
+app.include_router(patient_routes.router)
 
 # Health check
 @app.get("/health")

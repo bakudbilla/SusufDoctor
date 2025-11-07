@@ -108,6 +108,27 @@ async def login(
         )
 
 
+@router.get("/me")
+async def get_current_user(
+    current_user: dict = Depends(verify_token)
+):
+    """Get current authenticated user info"""
+    try:
+        return JSONResponse({
+            "status": "success",
+            "data": {
+                "user_id": current_user.get("user_id"),
+                "email": current_user.get("email"),
+                "full_name": current_user.get("full_name")
+            }
+        })
+    except Exception as e:
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=500
+        )
+
+
 @router.get("/profile")
 async def get_profile(
     current_user: dict = Depends(verify_token),

@@ -1,0 +1,9 @@
+venv/
+*.pyd
+*.dll
+*.lib
+__pycache__/
+*.pt
+*.pth
+*.h5
+*.onnx
