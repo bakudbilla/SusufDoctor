@@ -16,16 +16,16 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------
-# CORS CONFIGURATION
+# CORS CONFIGURATION (FIXED)
 # ---------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://susufdoctor-app.vercel.app"
+        "https://susufdoctor-app.vercel.app",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],  # Important for preflight
     allow_headers=["*"],
 )
 
@@ -39,7 +39,6 @@ async def startup_event():
         initialize_gcloud()
         print("Google Cloud initialized successfully")
     except Exception as e:
-        # Do not stop the API if GCP initialization fails
         print("Warning: Failed to initialize Google Cloud services:")
         print(str(e))
         print("Continuing without Google Cloud initialization.")
