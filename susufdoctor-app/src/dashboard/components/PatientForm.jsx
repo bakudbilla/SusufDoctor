@@ -1,25 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import {
-  Upload,
-  X,
-  FileImage,
-  CheckCircle2,
-  AlertCircle,
-  File,
-  Download,
-  Loader,
-  Edit2,
-  Save,
-  Eye,
-} from "lucide-react";
-import {API_URL} from '../../utils/constant'
+import { Upload, X, FileImage, CheckCircle2, AlertCircle, File, Download, Edit2, Save, Eye, Loader2 } from "lucide-react";
+import { API_URL } from '../../utils/constant'
+// import Loader from "../../utils/Loader";
 
-export default function PatientForm({ 
-  mode, 
-  selectedPatient, 
-  onBack, 
-  initialFormData = null 
-}) {
+
+export default function PatientForm({ mode, selectedPatient, onBack, initialFormData = null,onFormDataChange}) {
   const [formData, setFormData] = useState(
     initialFormData || {
       patientName: "",
@@ -50,7 +35,12 @@ export default function PatientForm({
   const xrayFileInputRef = useRef(null);
   const reportFileInputRef = useRef(null);
 
-  // Load prior report for returning patients
+  useEffect(() => {
+    if (onFormDataChange) {
+      onFormDataChange(formData);
+    }
+  }, [formData, onFormDataChange]);
+
   useEffect(() => {
     if (mode === "update" && selectedPatient?.patient_id) {
       fetchPriorReport(selectedPatient.patient_id);
@@ -62,7 +52,7 @@ export default function PatientForm({
       setLoadingPriorReport(true);
       const token = localStorage.getItem("access_token");
 
-      const response = await fetch(`${API_URL}/patients/${patientId}/visits`, {
+      const response = await fetch(`${API_URL}patients/${patientId}/visits`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -73,7 +63,6 @@ export default function PatientForm({
         const data = await response.json();
         const visits = data.data?.visits || [];
         
-        // Get the most recent visit
         if (visits.length > 0) {
           const latestVisit = visits[0];
           setReportFile({
@@ -182,7 +171,6 @@ export default function PatientForm({
       const formDataToSend = new FormData();
       formDataToSend.append("xray_image", xrayFile.file);
       
-      // Only append prior_report if it's a file (not a prior report from database)
       if (reportFile && reportFile.file && !reportFile.isPrior) {
         formDataToSend.append("prior_report", reportFile.file);
       }
@@ -196,7 +184,7 @@ export default function PatientForm({
       const token = localStorage.getItem("access_token");
       if (!token) throw new Error("Please login to generate reports");
 
-      const response = await fetch("http://localhost:8000/predict/", {
+      const response = await fetch(`${API_URL}predict/`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
@@ -262,7 +250,7 @@ export default function PatientForm({
       formDataToSend.append("bmi", formData.bmi);
       formDataToSend.append("view_type", formData.xrayView);
 
-      const response = await fetch("http://localhost:8000/predict/", {
+      const response = await fetch(`${API_URL}predict/`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
@@ -284,7 +272,7 @@ export default function PatientForm({
       
       setOriginalReportText(reportText);
       setIsEditMode(false);
-      setPdfUrl(result.data?.generated_report_url); // Update with new PDF URL
+      setPdfUrl(result.data?.generated_report_url);
       
       setSubmitStatus({
         type: "success",
@@ -325,7 +313,7 @@ export default function PatientForm({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-blue-50 p-6">
       <div className="max-w-3xl mx-auto">
         <button
           onClick={onBack}
@@ -403,7 +391,6 @@ export default function PatientForm({
             </div>
           </div>
 
-          {/* Upload X-ray Section */}
           <div className="mt-8">
             <h3 className="text-lg font-semibold text-slate-700 mb-4">Upload X-ray Image</h3>
             <div
@@ -457,7 +444,6 @@ export default function PatientForm({
             </div>
           </div>
 
-          {/* Report Text Editor Section */}
           {reportGenerated && (
             <div className="mt-8">
               <div className="flex items-center justify-between mb-4">
@@ -489,7 +475,7 @@ export default function PatientForm({
                     >
                       {isSaving ? (
                         <>
-                          <Loader className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                           Saving...
                         </>
                       ) : (
@@ -515,18 +501,16 @@ export default function PatientForm({
             </div>
           )}
 
-          {/* Prior Report Section */}
           <div className="mt-8">
             <h3 className="text-lg font-semibold text-slate-700 mb-4">
               {mode === "update" ? "Prior Report from Latest Visit" : "Reference Report (Optional)"}
             </h3>
             
             {mode === "update" ? (
-              // For returning patients - show prior report status
               <>
                 {loadingPriorReport ? (
                   <div className="flex items-center justify-center p-8 bg-slate-50 rounded-xl">
-                    <Loader className="h-5 w-5 animate-spin text-blue-500 mr-2" />
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-500 mr-2" />
                     <span>Loading prior report...</span>
                   </div>
                 ) : reportFile && reportFile.isPrior ? (
@@ -554,7 +538,6 @@ export default function PatientForm({
                 )}
               </>
             ) : (
-              // For new patients - allow manual upload
               <div
                 className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
                   reportDragActive ? "border-purple-400 bg-purple-50" : "border-slate-300"
@@ -598,7 +581,6 @@ export default function PatientForm({
             )}
           </div>
 
-          {/* Status */}
           {submitStatus && (
             <div
               className={`mt-6 p-4 rounded-lg border ${
@@ -618,17 +600,16 @@ export default function PatientForm({
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex gap-4 justify-center pt-8">
             {!reportGenerated ? (
               <button
                 onClick={handleGenerateReport}
                 disabled={isGenerating}
-                className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-linear-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all disabled:opacity-50"
               >
                 {isGenerating ? (
                   <>
-                    <Loader className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     Generating Report...
                   </>
                 ) : (
@@ -639,14 +620,14 @@ export default function PatientForm({
               <>
                 <button
                   onClick={handleViewReport}
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-green-400 to-green-600 hover:scale-105 transform transition-all"
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-linear-to-r from-green-400 to-green-600 hover:scale-105 transform transition-all"
                 >
                   <Eye className="h-4 w-4" />
                   View PDF
                 </button>
                 <button
                   onClick={handleDownloadReport}
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all"
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-linear-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all"
                 >
                   <Download className="h-4 w-4" />
                   Download PDF

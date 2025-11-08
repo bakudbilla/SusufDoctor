@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Filter, Upload, User, Loader } from "lucide-react";
-import {API_URL} from '../../utils/constant'
+import { API_URL } from '../../utils/constant'
 
 const filterOptions = ["All", "Frontal", "Lateral"];
 const sortOptions = [
@@ -9,11 +9,11 @@ const sortOptions = [
 ];
 
 const quickActions = [
-  { label: "Upload images", icon: Upload },
-  { label: "Patient Management", icon: User },
+  { label: "Upload images", icon: Upload, id: 'upload' },
+  { label: "Patient Management", icon: User, id: 'patients' },
 ];
 
-export default function FiltersQuickAction() {
+export default function FiltersQuickAction({ onNavigate }) {
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [openFilter, setOpenFilter] = useState(false);
@@ -21,7 +21,6 @@ export default function FiltersQuickAction() {
   const [error, setError] = useState(null);
   const [currentFilter, setCurrentFilter] = useState("All");
 
-  // Fetch patients from backend
   useEffect(() => {
     fetchPatients();
   }, []);
@@ -31,7 +30,7 @@ export default function FiltersQuickAction() {
       setLoading(true);
       const token = localStorage.getItem("access_token");
       
-      const response = await fetch(`${API_URL}/patients/dashboard`, {
+      const response = await fetch(`${API_URL}patients/dashboard`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -161,8 +160,12 @@ export default function FiltersQuickAction() {
       <div className="w-full md:w-[30%] bg-white rounded-xl shadow p-6">
         <h2 className="font-semibold text-lg mb-4">Quick Actions</h2>
         <ul className="space-y-4 text-gray-700">
-          {quickActions.map(({ label, icon: Icon }) => (
-            <li key={label} className="flex items-center gap-3 cursor-pointer hover:text-blue-600 transition">
+          {quickActions.map(({ label, icon: Icon, id }) => (
+            <li 
+              key={label} 
+              onClick={() => onNavigate && onNavigate(id)}
+              className="flex items-center gap-3 cursor-pointer hover:text-blue-600 transition"
+            >
               <Icon size={18} /> {label}
             </li>
           ))}

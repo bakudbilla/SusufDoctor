@@ -1,11 +1,11 @@
 /* eslint-disable no-useless-catch */
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, } from "lucide-react";
 import whatspecial from "../assets/whatspecial.png";
 import radio from "../assets/radio.png";
 import Loader from "../utils/Loader";
 import logo2 from "../assets/logo2.png";
-import {API_URL} from '../../utils/constant'
+import { API_URL } from '../utils/constant';
 
 export default function Signup() {
   const [userInput, setUserInput] = useState({
@@ -75,7 +75,7 @@ export default function Signup() {
 
   const handleRegister = async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/register`, {
+      const response = await fetch(`${API_URL}auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -113,7 +113,7 @@ export default function Signup() {
 
   async function handleLogin() {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${API_URL}auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -202,7 +202,9 @@ export default function Signup() {
 
   return (
     <>
-      {loading && <Loader text={isLogin ? "Logging in..." : "Creating account..."} />}
+      {loading && (
+      <Loader text={isLogin ? 'Logging in....' : "Creating an account..."} />
+      )}
 
       <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-cyan-50 via-teal-50 to-cyan-100 px-4 py-8">
         <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl grid grid-cols-1 md:grid-cols-2 overflow-hidden">
@@ -380,7 +382,6 @@ export default function Signup() {
             </div>
           </div>
 
-          {/* Right Section (Image) */}
           <div className="hidden md:flex items-center justify-center bg-linear-to-br from-blue-500 to-blue-600 p-12">
             <div className="w-full max-w-md">
               <img

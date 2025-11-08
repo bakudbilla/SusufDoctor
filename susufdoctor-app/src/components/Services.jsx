@@ -1,30 +1,9 @@
 import { motion } from "framer-motion";
 import { SlideLeft } from "../utils/animations";
+import { services } from '../utils/constant';
 
 export default function Services() {
-  const services = [
-    {
-      img: "/src/assets/report.png",
-      title: "Report Generation",
-      desc: "Automatically generate preliminary reports using standardized templates. Saves time, reduces errors, and enhances diagnostic accuracy."
-    },
-    {
-      img: "/src/assets/Gradcam.jpeg",
-      title: "Gradcam Visualization",
-      desc: "Instantly visualize the exact areas the AI focuses on within the image. Enhances diagnostic confidence and communication with clinicians."
-    },
-    {
-      img: "/src/assets/RLHF.png",
-      title: "RLHF",
-      desc: "Refines reports continuously using Human Feedback. Ensures the system evolves to meet expert radiologists’ standards."
-    },
-    {
-      img: "/src/assets/patient_analysis.jpeg",
-      title: "Patient Analysis",
-      desc: "Provides immediate patient-level insights. Supports clinicians in decision-making and timely interventions."
-    },
-  ];
-
+ 
   return (
     <section id="services" className="bg-linear-to-b from-white to-blue-50 py-24 px-6">
       <div className="max-w-7xl mx-auto text-center">

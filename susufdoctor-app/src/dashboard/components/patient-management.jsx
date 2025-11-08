@@ -6,7 +6,9 @@ import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Label } from './ui/label';
 import { Search, User, Eye, FileText, X, Loader2 } from 'lucide-react';
-import {API_URL} from '../../utils/constant'
+import { API_URL } from '../../utils/constant';
+
+
 
 export default function PatientRevisitSystem() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,7 +34,7 @@ export default function PatientRevisitSystem() {
       setError('');
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`${API_URL}/patients/`, {
+      const response = await fetch(`${API_URL}patients/`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -58,7 +60,7 @@ export default function PatientRevisitSystem() {
       setLoadingPatient(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`${API_URL}/patients/${patientId}`, {
+      const response = await fetch(`${API_URL}patients/${patientId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

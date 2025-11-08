@@ -1,20 +1,11 @@
 import { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
-import {
-  Activity,
-  CheckCircle,
-  LogOut,
-  Loader,
-} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, } from "../components/ui/card";
+import { Activity, CheckCircle, LogOut, Loader, } from "lucide-react";
 import PatientsPerMonthChart from "../components/PatientChart";
 import FiltersQuickAction from "../components/FiltersQuickAction";
+import { API_URL } from '../../utils/constant';
 
-export function Dashboard() {
+export function Dashboard({ onNavigate }) {
   const [radiologistName, setRadiologistName] = useState("Dr. Unknown");
   const [stats, setStats] = useState({
     totalScans: 0,
@@ -23,7 +14,6 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Try to get radiologist name from localStorage first
     const storedName = localStorage.getItem("radiologist_name");
     if (storedName) {
       setRadiologistName(storedName);
@@ -37,9 +27,8 @@ export function Dashboard() {
       setLoading(true);
       const token = localStorage.getItem("access_token");
       
-      // Fetch user info from auth/me endpoint
       try {
-        const userResponse = await fetch("http://localhost:8000/auth/me", {
+        const userResponse = await fetch(`${API_URL}auth/me`, {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -54,11 +43,9 @@ export function Dashboard() {
         }
       } catch (e) {
         console.log("Auth/me endpoint not available, using localStorage");
-        // If endpoint fails, name from localStorage is already set
       }
 
-      // Fetch dashboard patients for stats
-      const patientsResponse = await fetch("http://localhost:8000/patients", {
+      const patientsResponse = await fetch(`${API_URL}patients`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -69,7 +56,6 @@ export function Dashboard() {
         const patientsData = await patientsResponse.json();
         const patientsList = patientsData.data || [];
         
-        // Calculate stats
         const totalScans = patientsList.length;
         const today = new Date().toISOString().split("T")[0];
         const completedToday = patientsList.filter(p => {
@@ -171,7 +157,8 @@ export function Dashboard() {
       {/* Chart Section */}
       <PatientsPerMonthChart />
 
-      <FiltersQuickAction />
+      <FiltersQuickAction onNavigate={onNavigate} />
+
     </div>
   );
 }

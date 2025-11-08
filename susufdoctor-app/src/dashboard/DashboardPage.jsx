@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigation } from './components/layout/navigation';
 import { Dashboard } from './pages/dashboard';
 import { UploadPage } from './pages/upload-page';
 import { PatientsPage } from './pages/patients-page';
-import Settings from './pages/settings'
+import Settings from './pages/settings';
 
 export default function DashboardPage() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(() => {
+    return localStorage.getItem('currentPage') || 'dashboard';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('currentPage', currentPage);
+  }, [currentPage]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -17,7 +23,7 @@ export default function DashboardPage() {
       case 'patients':
         return <PatientsPage />;
       case 'settings':
-        return <Settings />
+        return <Settings />;
       default:
         return <Dashboard onNavigate={setCurrentPage} />;
     }
