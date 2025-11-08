@@ -11,33 +11,49 @@ load_dotenv()
 # Initialize FastAPI app
 app = FastAPI(
     title="SuSufDoctor API",
-    description="Radiology Report Generation System for Radiologists",
+    description="Radiology Report Generation System",
     version="1.0.0"
 )
 
-# CORS
+# ---------------------------------------------------------
+# CORS CONFIGURATION
+# ---------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[  "http://localhost:5173",
-        "https://susufdoctor-app.onrender.com"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://susufdoctor-app.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize on startup
+# ---------------------------------------------------------
+# SAFE STARTUP
+# ---------------------------------------------------------
 @app.on_event("startup")
 async def startup_event():
     print("Starting up SuSufDoctor API...")
-    initialize_gcloud()
-    print("Google Cloud initialized")
+    try:
+        initialize_gcloud()
+        print("Google Cloud initialized successfully")
+    except Exception as e:
+        # Do not stop the API if GCP initialization fails
+        print("Warning: Failed to initialize Google Cloud services:")
+        print(str(e))
+        print("Continuing without Google Cloud initialization.")
 
-# Include routers
+# ---------------------------------------------------------
+# ROUTERS
+# ---------------------------------------------------------
 app.include_router(auth_routes.router)
 app.include_router(predict_routes.router)
 app.include_router(patient_routes.router)
 
-# Health check
+# ---------------------------------------------------------
+# HEALTH CHECK
+# ---------------------------------------------------------
 @app.get("/health")
 async def health_check():
     return {
@@ -45,7 +61,9 @@ async def health_check():
         "service": "SuSufDoctor API"
     }
 
-# Root endpoint
+# ---------------------------------------------------------
+# ROOT ENDPOINT
+# ---------------------------------------------------------
 @app.get("/")
 async def root():
     return {
