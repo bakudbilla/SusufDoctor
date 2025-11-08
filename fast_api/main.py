@@ -16,17 +16,20 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------
-# CORS CONFIGURATION (FIXED)
+# IMPROVED CORS CONFIGURATION
 # ---------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://susuf-doctor.vercel.app",
         "http://localhost:5173",
+        "http://localhost:3000",  # Add common dev ports
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],  # Important for preflight
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all methods including OPTIONS, PUT, DELETE, etc.
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"],  # Expose all headers to frontend
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
 # ---------------------------------------------------------
