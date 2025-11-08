@@ -7,6 +7,7 @@ from google.oauth2 import service_account
 from auth import decode_token
 from dotenv import load_dotenv
 
+# Load local .env only for development; Render uses its own environment
 load_dotenv()
 
 security = HTTPBearer()
@@ -19,109 +20,97 @@ BUCKET_NAME = os.getenv("BUCKET_NAME", "susufdoctor-storage")
 
 
 def initialize_gcloud():
-    """Initialize Google Cloud clients using credentials from file or environment"""
+    """
+    Initialize Google Cloud Storage + Firestore using GCP_CREDENTIALS 
+    (escaped JSON string stored as an environment variable).
+    """
     global storage_client, firestore_client, bucket
 
     try:
-        credentials_path = os.getenv("GCP_CREDENTIALS_PATH")
         creds_json = os.getenv("GCP_CREDENTIALS")
         project_id = os.getenv("GCP_PROJECT_ID")
 
-        credentials = None
+        if not creds_json:
+            raise RuntimeError(
+                "GCP_CREDENTIALS is missing. Did you set it in Render environment variables?"
+            )
 
-        if credentials_path and os.path.exists(credentials_path):
-            print(f"Loading GCP credentials from file: {credentials_path}")
-            credentials = service_account.Credentials.from_service_account_file(credentials_path)
-            print("Service account credentials loaded from file")
-        
-        elif creds_json:
-            print("Loading GCP credentials from environment variable...")
-            creds_info = json.loads(creds_json)
-            credentials = service_account.Credentials.from_service_account_info(creds_info)
-            print("Service account credentials loaded from environment")
-        
-        else:
-            print("No credentials found, using default application credentials...")
-            credentials = None
+        print("Loading Google Cloud service account from environment...")
 
-        if credentials:
-            storage_client = storage.Client(credentials=credentials, project=project_id)
-            firestore_client = firestore.Client(credentials=credentials, project=project_id)
-        else:
-            storage_client = storage.Client()
-            firestore_client = firestore.Client()
+        # Convert escaped JSON string into real Python dict
+        creds_info = json.loads(creds_json)
 
+        # Convert to Google service account credentials
+        credentials = service_account.Credentials.from_service_account_info(creds_info)
+
+        # Initialize clients
+        storage_client = storage.Client(credentials=credentials, project=project_id)
+        firestore_client = firestore.Client(credentials=credentials, project=project_id)
+
+        # Assign bucket
+        global bucket
         bucket = storage_client.bucket(BUCKET_NAME)
+
         print(f"Connected to Google Cloud Project: {storage_client.project}")
         print(f"Using Storage Bucket: {BUCKET_NAME}")
-        print(f"Firestore Project: {firestore_client.project}")
+        print(f" Firestore Project: {firestore_client.project}")
 
-    except FileNotFoundError as e:
-        print(f"Credentials file not found: {e}")
-        raise
     except json.JSONDecodeError as e:
-        print(f"JSON decode error in GCP_CREDENTIALS: {e}")
-        raise ValueError("GCP_CREDENTIALS is not valid JSON")
+        print(" ERROR: Invalid JSON in GCP_CREDENTIALS:", e)
+        raise HTTPException(status_code=500, detail="Invalid GCP credentials JSON")
+
     except Exception as e:
-        print(f"Error connecting to Google Cloud services: {e}")
-        raise
+        print(f"ERROR initializing Google Cloud services: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def get_firestore():
-    """Dependency to get Firestore client"""
+    """Return Firestore client."""
     if not firestore_client:
-        raise HTTPException(
-            status_code=500,
-            detail="Firestore not initialized"
-        )
+        raise HTTPException(status_code=500, detail="Firestore not initialized")
     return firestore_client
 
 
 def get_storage_bucket():
-    """Dependency to get GCS bucket"""
+    """Return Google Cloud Storage bucket."""
     if not bucket:
-        raise HTTPException(
-            status_code=500,
-            detail="Storage bucket not initialized"
-        )
+        raise HTTPException(status_code=500, detail="Storage bucket not initialized")
     return bucket
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    """Verify JWT token and return user data"""
+    """
+    Verify JWT token from Authorization: Bearer <token>
+    """
     try:
         print(f"DEBUG: Credentials object: {credentials}")
-        print(f"DEBUG: Credentials type: {type(credentials)}")
-        
+
         if not credentials:
-            print("DEBUG: No credentials provided")
-            raise HTTPException(status_code=401, detail="No credentials provided")
-        
+            raise HTTPException(status_code=401, detail="Authorization header missing")
+
         token = credentials.credentials
-        print(f"DEBUG: Token received (first 20 chars): {token[:20] if token else 'None'}...")
-        
+        print(f"DEBUG: Token received (first 20 chars): {token[:20]}...")
+
         payload = decode_token(token)
         print(f"DEBUG: Decoded payload: {payload}")
 
         if payload is None:
-            print("DEBUG: Payload is None - token decode failed")
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
         user_id = payload.get("sub")
-        if user_id is None:
-            print("DEBUG: user_id not in payload")
+        if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token payload")
 
-        print(f"DEBUG: Token verified for user: {user_id}")
-        
+        print(f" Token valid for user: {user_id}")
+
         return {
             "user_id": user_id,
             "email": payload.get("email"),
             "full_name": payload.get("full_name")
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
-        print(f"DEBUG: Unexpected error in verify_token: {e}")
-        raise HTTPException(status_code=401, detail=str(e))
+        print(f" Unexpected token verification error: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
