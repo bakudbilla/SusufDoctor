@@ -19,9 +19,11 @@ BUCKET_NAME = os.getenv("BUCKET_NAME", "susufdoctor-storage")
 
 
 def initialize_gcloud():
-    """Initialize Google Cloud clients using either:
-       1. GCP_CREDENTIALS_PATH (LOCALHOST)
-       2. GCP_CREDENTIALS (RENDER)
+    """
+    Initialize Google Cloud clients.
+    Supports:
+    1. Localhost: GCP_CREDENTIALS_PATH (path to JSON file)
+    2. Render: GCP_CREDENTIALS (JSON string in environment variable)
     """
     global storage_client, firestore_client, bucket
 
@@ -29,51 +31,54 @@ def initialize_gcloud():
     project_id = os.getenv("GCP_PROJECT_ID")
 
     try:
-        # Use file-based credentials on LOCALHOST
         credentials_path = os.getenv("GCP_CREDENTIALS_PATH")
+
+        # Localhost case: loading JSON file
         if credentials_path and os.path.exists(credentials_path):
             print(f"Loading GCP credentials from file: {credentials_path}")
             credentials = service_account.Credentials.from_service_account_file(
                 credentials_path
             )
-            print("Loaded service account from file (LOCALHOST)")
+            print("Loaded service account from file")
 
-        #Use JSON string credentials on RENDER
+        # Render case: JSON string in environment variable
         else:
             creds_json = os.getenv("GCP_CREDENTIALS")
             if creds_json:
-                print("Loading GCP credentials from environment variable (RENDER)")
+                print("Loading GCP credentials from environment variable")
+
                 creds_info = json.loads(creds_json)
 
-                # FIX HERE: Convert escaped newlines to actual newlines
+                # Replace escaped newlines with real newlines
                 if "private_key" in creds_info:
                     creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
 
                 credentials = service_account.Credentials.from_service_account_info(
                     creds_info
                 )
-                print("Loaded service account from JSON env")
+                print("Loaded service account from JSON string")
 
-        # Initialize GCP clients
+        # Initialize cloud clients
         if credentials:
             storage_client = storage.Client(credentials=credentials, project=project_id)
             firestore_client = firestore.Client(credentials=credentials, project=project_id)
         else:
-            print("WARNING: No credentials provided, using default ADC")
+            print("Warning: No credentials provided. Using default ADC.")
             storage_client = storage.Client()
             firestore_client = firestore.Client()
 
         bucket = storage_client.bucket(BUCKET_NAME)
 
-        print(f"Connected to GCP Project: {storage_client.project}")
-        print(f"Using Storage Bucket: {BUCKET_NAME}")
-        print(f"Firestore Project: {firestore_client.project}")
+        print(f"Connected to Google Cloud project: {storage_client.project}")
+        print(f"Using storage bucket: {BUCKET_NAME}")
+        print(f"Firestore project: {firestore_client.project}")
 
     except json.JSONDecodeError:
-        raise ValueError("GCP_CREDENTIALS env variable is NOT valid JSON")
+        raise ValueError("GCP_CREDENTIALS environment variable is not valid JSON")
     except Exception as e:
         print(f"Error initializing GCP: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 def get_firestore():
     if not firestore_client:
