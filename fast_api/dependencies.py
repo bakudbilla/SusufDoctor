@@ -29,7 +29,7 @@ def initialize_gcloud():
     project_id = os.getenv("GCP_PROJECT_ID")
 
     try:
-        # ✅ Use file-based credentials on LOCALHOST
+        # Use file-based credentials on LOCALHOST
         credentials_path = os.getenv("GCP_CREDENTIALS_PATH")
         if credentials_path and os.path.exists(credentials_path):
             print(f"Loading GCP credentials from file: {credentials_path}")
@@ -38,18 +38,23 @@ def initialize_gcloud():
             )
             print("Loaded service account from file (LOCALHOST)")
 
-        # ✅ Use JSON string credentials on RENDER
+        #Use JSON string credentials on RENDER
         else:
             creds_json = os.getenv("GCP_CREDENTIALS")
             if creds_json:
                 print("Loading GCP credentials from environment variable (RENDER)")
                 creds_info = json.loads(creds_json)
+
+                # FIX HERE: Convert escaped newlines to actual newlines
+                if "private_key" in creds_info:
+                    creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+
                 credentials = service_account.Credentials.from_service_account_info(
                     creds_info
                 )
                 print("Loaded service account from JSON env")
 
-        # ✅ Default application credentials (not recommended but safe fallback)
+        # Initialize GCP clients
         if credentials:
             storage_client = storage.Client(credentials=credentials, project=project_id)
             firestore_client = firestore.Client(credentials=credentials, project=project_id)
@@ -69,7 +74,6 @@ def initialize_gcloud():
     except Exception as e:
         print(f"Error initializing GCP: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 def get_firestore():
     if not firestore_client:
