@@ -15,31 +15,52 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS
+# ---------------------------------------------------------
+# FIXED CORS CONFIGURATION (Syntax corrected)
+# ---------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"
-        "http://localhost:5173"
+    allow_origins=[
         "https://susuf-doctor.vercel.app",
-                   ],
+        "https://susuf-doctor-git-main-awinpangs-projects.vercel.app", 
+        "https://susuf-doctor-5t7ex342u-awinpangs-projects.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000"
+    ],  # Added missing commas between origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize on startup
+# ---------------------------------------------------------
+# EXPLICIT OPTIONS HANDLER FOR CORS PREFLIGHT
+# ---------------------------------------------------------
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {"message": "CORS preflight approved"}
+
+# ---------------------------------------------------------
+# SAFE STARTUP INITIALIZATION
+# ---------------------------------------------------------
 @app.on_event("startup")
 async def startup_event():
     print("Starting up SuSufDoctor API...")
-    initialize_gcloud()
-    print("Google Cloud initialized")
+    try:
+        initialize_gcloud()
+        print("Google Cloud initialized")
+    except Exception as e:
+        print(f"Google Cloud init warning: {e}")
 
-# Include routers
+# ---------------------------------------------------------
+# ALL ROUTERS MAINTAINED
+# ---------------------------------------------------------
 app.include_router(auth_routes.router)
 app.include_router(predict_routes.router)
 app.include_router(patient_routes.router)
 
-# Health check
+# ---------------------------------------------------------
+# HEALTH CHECK ENDPOINT
+# ---------------------------------------------------------
 @app.get("/health")
 async def health_check():
     return {
@@ -47,11 +68,16 @@ async def health_check():
         "service": "SuSufDoctor API"
     }
 
-# Root endpoint
+# ---------------------------------------------------------
+# ROOT ENDPOINT
+# ---------------------------------------------------------
 @app.get("/")
 async def root():
     return {
         "message": "Welcome to SuSufDoctor API",
-        "docs": "/docs",
+        "docs": "/docs", 
         "version": "1.0.0"
     }
+
+
+
