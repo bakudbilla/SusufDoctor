@@ -21,8 +21,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://susuf-doctor.vercel.app",
         "http://localhost:5173",
-        "https://susufdoctor-app.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],  # Important for preflight
