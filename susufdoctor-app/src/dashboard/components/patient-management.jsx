@@ -9,7 +9,6 @@ import { Search, User, Eye, FileText, X, Loader2 } from 'lucide-react';
 import { API_URL } from '../../utils/constant';
 
 
-
 export default function PatientRevisitSystem() {
   const [searchTerm, setSearchTerm] = useState('');
   const [patients, setPatients] = useState([]);
