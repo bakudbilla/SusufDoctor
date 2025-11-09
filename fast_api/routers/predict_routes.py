@@ -407,7 +407,7 @@ async def health_check():
             status_code=500
         )
 
-@router.post("/")
+@router.post("")
 async def predict(
     xray_image: UploadFile = File(None),
     prior_report: UploadFile = File(None),
