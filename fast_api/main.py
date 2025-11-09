@@ -13,7 +13,6 @@ app = FastAPI(
     title="SuSufDoctor API",
     description="Radiology Report Generation System for Radiologists",
     version="1.0.0",
-    redirect_slashes=False
 )
 
 # ---------------------------------------------------------
