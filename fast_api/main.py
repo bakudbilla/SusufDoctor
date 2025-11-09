@@ -60,15 +60,10 @@ async def health_check():
 # ---------------------------------------------------------
 # SAFE STARTUP INITIALIZATION
 # ---------------------------------------------------------
-@app.on_event("startup")
-async def startup_event():
-    print(" Starting up SuSufDoctor API...")
-    print(f"✓ Allowed Origins: {origins}")
-    try:
-        initialize_gcloud()
-        print("✓ Google Cloud initialized successfully")
-    except Exception as e:
-        print(f"⚠ Google Cloud init warning: {e}")
+@app.get("/ping")
+async def ping():
+    return {"message": "API is alive"}
+
 
 # ---------------------------------------------------------
 # INCLUDE ALL ROUTERS
