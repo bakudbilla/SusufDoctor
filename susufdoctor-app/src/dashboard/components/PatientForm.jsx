@@ -184,7 +184,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       const token = localStorage.getItem("access_token");
       if (!token) throw new Error("Please login to generate reports");
 
-      const response = await fetch(`${API_URL}predict/`, {
+      const response = await fetch(`${API_URL}predict`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
@@ -250,7 +250,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       formDataToSend.append("bmi", formData.bmi);
       formDataToSend.append("view_type", formData.xrayView);
 
-      const response = await fetch(`${API_URL}predict/`, {
+      const response = await fetch(`${API_URL}predict`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
