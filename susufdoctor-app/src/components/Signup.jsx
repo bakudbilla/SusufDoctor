@@ -1,5 +1,6 @@
 /* eslint-disable no-useless-catch */
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, } from "lucide-react";
 import whatspecial from "../assets/whatspecial.png";
 import radio from "../assets/radio.png";
@@ -8,6 +9,8 @@ import logo2 from "../assets/logo2.png";
 import { API_URL } from '../utils/constant';
 
 export default function Signup() {
+  const navigate = useNavigate();
+  
   const [userInput, setUserInput] = useState({
     first_name: "",
     last_name: "",
@@ -175,7 +178,7 @@ export default function Signup() {
 
           if (isLogin) {
             setTimeout(() => {
-              window.location.href = "/dashboard";
+              navigate("/dashboard");
             }, 1500);
           } else {
             setTimeout(() => {
