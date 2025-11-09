@@ -39,7 +39,7 @@ def initialize_gcloud():
             credentials = service_account.Credentials.from_service_account_file(
                 credentials_path
             )
-            print("Loaded service account from file")
+            print("✓ Loaded service account from file")
 
         # Render case: JSON string in environment variable
         else:
@@ -56,38 +56,45 @@ def initialize_gcloud():
                 credentials = service_account.Credentials.from_service_account_info(
                     creds_info
                 )
-                print("Loaded service account from JSON string")
+                print("✓ Loaded service account from JSON string")
+            else:
+                print("⚠ WARNING: No GCP_CREDENTIALS_PATH or GCP_CREDENTIALS found!")
 
         # Initialize cloud clients
         if credentials:
             storage_client = storage.Client(credentials=credentials, project=project_id)
             firestore_client = firestore.Client(credentials=credentials, project=project_id)
+            print(f"✓ Connected to Google Cloud project: {storage_client.project}")
         else:
-            print("Warning: No credentials provided. Using default ADC.")
+            print("⚠ No credentials provided. Attempting to use default ADC...")
             storage_client = storage.Client()
             firestore_client = firestore.Client()
+            print(f"✓ Using default Application Default Credentials")
 
         bucket = storage_client.bucket(BUCKET_NAME)
 
-        print(f"Connected to Google Cloud project: {storage_client.project}")
-        print(f"Using storage bucket: {BUCKET_NAME}")
-        print(f"Firestore project: {firestore_client.project}")
+        print(f"✓ Storage bucket: {BUCKET_NAME}")
+        print(f"✓ Firestore project: {firestore_client.project}")
+        print("✓ Google Cloud initialized successfully!")
 
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"❌ GCP_CREDENTIALS is not valid JSON: {e}")
         raise ValueError("GCP_CREDENTIALS environment variable is not valid JSON")
     except Exception as e:
-        print(f"Error initializing GCP: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Error initializing GCP: {e}")
+        raise
 
 
 def get_firestore():
     if not firestore_client:
+        print("❌ Firestore not initialized! Check your GCP credentials.")
         raise HTTPException(status_code=500, detail="Firestore not initialized")
     return firestore_client
 
 
 def get_storage_bucket():
     if not bucket:
+        print("❌ Storage bucket not initialized! Check your GCP credentials.")
         raise HTTPException(status_code=500, detail="Bucket not initialized")
     return bucket
 

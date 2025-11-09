@@ -79,10 +79,10 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     print("🚀 Starting up SuSufDoctor API...")
-    print(f"✅ Allowed Origins: {origins}")
+    print(f" Allowed Origins: {origins}")
     try:
         initialize_gcloud()
-        print("✅ Google Cloud initialized successfully")
+        print("Google Cloud initialized successfully")
     except Exception as e:
         print(f"⚠ Google Cloud init warning: {e}")
 
