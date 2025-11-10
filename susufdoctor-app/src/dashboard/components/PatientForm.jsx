@@ -1,10 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Upload, X, FileImage, CheckCircle2, AlertCircle, File, Download, Edit2, Save, Eye, Loader2 } from "lucide-react";
 import { API_URL } from '../../utils/constant'
-// import Loader from "../../utils/Loader";
 
-
-export default function PatientForm({ mode, selectedPatient, onBack, initialFormData = null,onFormDataChange}) {
+export default function PatientForm({ mode, selectedPatient, onBack, initialFormData = null, onFormDataChange }) {
   const [formData, setFormData] = useState(
     initialFormData || {
       patientName: "",
@@ -184,7 +182,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       const token = localStorage.getItem("access_token");
       if (!token) throw new Error("Please login to generate reports");
 
-      const response = await fetch(`${API_URL}predict`, {
+      const response = await fetch(`${API_URL}predict/`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
@@ -237,6 +235,8 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
 
   const handleSaveAndDownload = async () => {
     setIsSaving(true);
+    setSubmitStatus(null);
+    
     try {
       const token = localStorage.getItem("access_token");
       
@@ -250,7 +250,13 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       formDataToSend.append("bmi", formData.bmi);
       formDataToSend.append("view_type", formData.xrayView);
 
-      const response = await fetch(`${API_URL}predict`, {
+      console.log("🔄 Sending edit request...", {
+        firestoreId,
+        reportTextLength: reportText.length,
+        patientName: formData.patientName
+      });
+
+      const response = await fetch(`${API_URL}predict/`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
@@ -269,20 +275,26 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       }
 
       const result = await response.json();
-      
+      console.log("✅ Edit save response:", result);
+
+      // Update the PDF URL with the new edited PDF URL
+      const newPdfUrl = result.data?.generated_report_url;
+      if (newPdfUrl) {
+        setPdfUrl(newPdfUrl);
+      }
+
       setOriginalReportText(reportText);
       setIsEditMode(false);
-      setPdfUrl(result.data?.generated_report_url);
       
       setSubmitStatus({
         type: "success",
-        message: "Report saved! Downloading updated PDF...",
+        message: "Report saved successfully! You can now download the updated PDF.",
       });
 
-      setTimeout(() => {
-        handleDownloadReport();
-      }, 500);
+      // Don't auto-download - let user choose when to download
+      
     } catch (error) {
+      console.error("❌ Error saving report:", error);
       setSubmitStatus({
         type: "error",
         message: `Failed to save report: ${error.message}`,
@@ -481,7 +493,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                       ) : (
                         <>
                           <Save className="h-4 w-4" />
-                          Save & Download PDF
+                          Save Changes
                         </>
                       )}
                     </button>
