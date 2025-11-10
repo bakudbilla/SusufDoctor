@@ -1,5 +1,5 @@
-//export const API_URL= 'https://susuf-doctor-api-264979066371.europe-west1.run.app/';
-export const API_URL= 'http://127.0.0.1:8000/';
+export const API_URL= 'https://susuf-doctor-api-264979066371.europe-west1.run.app/';
+//export const API_URL= 'http://127.0.0.1:8000/';
 
 
 export const services = [
