@@ -21,11 +21,17 @@ COPY . .
 # Create model cache directory
 RUN mkdir -p /app/model_cache
 
-# Pre-download and cache the model during build
+# Accept HF_TOKEN as build argument
+ARG HF_TOKEN
+ENV HF_TOKEN=${HF_TOKEN}
 ENV HF_HOME=/app/model_cache
+ENV TRANSFORMERS_CACHE=/app/model_cache
+
+# Pre-download and cache the model during build
 RUN python3 << 'EOF'
 import os
 os.environ['TRANSFORMERS_CACHE'] = '/app/model_cache'
+os.environ['HF_HOME'] = '/app/model_cache'
 
 try:
     from transformers import AutoModelForVision2Seq, AutoProcessor
@@ -33,12 +39,13 @@ try:
     HF_TOKEN = os.getenv('HF_TOKEN', '')
     BASE_MODEL_ID = "HuggingFaceTB/SmolVLM-500M-Instruct"
     
+    print(f"Using HF_TOKEN: {HF_TOKEN[:20]}..." if HF_TOKEN else "No HF_TOKEN")
     print("Downloading base model...")
     AutoModelForVision2Seq.from_pretrained(
         BASE_MODEL_ID,
         trust_remote_code=True,
         cache_dir='/app/model_cache',
-        token=HF_TOKEN
+        token=HF_TOKEN if HF_TOKEN else None
     )
     
     print("Downloading processor...")
@@ -46,7 +53,7 @@ try:
         BASE_MODEL_ID,
         trust_remote_code=True,
         cache_dir='/app/model_cache',
-        token=HF_TOKEN
+        token=HF_TOKEN if HF_TOKEN else None
     )
     
     print("Model cached successfully!")
@@ -58,7 +65,7 @@ EOF
 # Expose port
 EXPOSE 8080
 
-# Set environment for model caching
+# Set environment for model caching at runtime
 ENV TRANSFORMERS_CACHE=/app/model_cache
 ENV HF_HOME=/app/model_cache
 
