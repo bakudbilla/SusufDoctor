@@ -16,16 +16,12 @@ from susufDoctor_model import load_model, predict_report
 
 router = APIRouter(prefix="/predict", tags=["Prediction"])
 
-# Lazy load model on first use
-model_bundle = None
-
 def get_model():
-    """Lazy load model on first request"""
-    global model_bundle
-    if model_bundle is None:
-        print("Loading model for first time...")
-        model_bundle = load_model()
-    return model_bundle
+    """
+    Get the cached model for use in main.py startup and endpoints.
+    This function is called by main.py during startup to pre-load the model.
+    """
+    return load_model()
 
 def upload_to_bucket(bucket: storage.Bucket, file_bytes: bytes, destination_path: str, content_type: str):
     """Upload file to GCS and return signed URL"""
@@ -315,8 +311,10 @@ async def handle_new_report_mode(
         prior_filename = f"reports/{datetime.now().strftime('%Y%m%d-%H%M%S')}_{prior_report.filename}"
         prior_report_url = upload_to_bucket(bucket, pdf_bytes, prior_filename, "application/pdf")
 
-    # Get model and generate AI report
+    # Get model (will use cached version from startup if already loaded)
     model_bundle = get_model()
+    
+    # Generate AI report
     result = predict_report(
         model_bundle, 
         image, 
@@ -395,6 +393,7 @@ async def handle_new_report_mode(
 async def health_check():
     """Check if model is loaded and API is healthy"""
     try:
+        # This will return cached model if already loaded
         model_bundle = get_model()
         return {
             "status": "healthy",
@@ -458,6 +457,8 @@ async def predict(
         raise
     except Exception as e:
         print(f"Prediction error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             {"status": "error", "message": f"Internal server error: {str(e)}"}, 
             status_code=500

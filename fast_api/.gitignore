@@ -7,3 +7,4 @@ __pycache__/
 *.pth
 *.h5
 *.onnx
+venv_py311

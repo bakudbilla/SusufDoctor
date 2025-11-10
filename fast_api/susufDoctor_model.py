@@ -10,43 +10,81 @@ load_dotenv()
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 MODEL_ID = os.getenv("MODEL_NAME", "Awinpang/smolvlm-finetuned-xray")
-BASE_MODEL_ID = "HuggingFaceTB/SmolVLM-500M-Instruct"  # Correct base model
+BASE_MODEL_ID = "HuggingFaceTB/SmolVLM-500M-Instruct"
+
+# Global cache - single source of truth
+_MODEL_CACHE = None
+_LOADING_LOCK = False
 
 def load_model(token=HF_TOKEN):
     """
-    Load the base Idefics3 model and apply LoRA adapter.
-    Optimized for low memory usage.
+    Load the base model and apply LoRA adapter.
+    Thread-safe singleton pattern to prevent multiple loads.
     """
-    print(f"Loading base model {BASE_MODEL_ID}...")
+    global _MODEL_CACHE, _LOADING_LOCK
     
-    # Load base model with memory optimizations
-    base_model = AutoModelForVision2Seq.from_pretrained(
-        BASE_MODEL_ID,
-        trust_remote_code=True,
-        torch_dtype=torch.float16,
-        device_map="auto",
-        token=token,
-    )
+    # Return cached model if already loaded
+    if _MODEL_CACHE is not None:
+        print("✓ Returning cached model bundle")
+        return _MODEL_CACHE
     
-    print(f"Loading LoRA adapter from {MODEL_ID}...")
+    # Prevent concurrent loading attempts
+    if _LOADING_LOCK:
+        import time
+        print(" Waiting for model to finish loading...")
+        while _LOADING_LOCK:
+            time.sleep(0.5)
+        return _MODEL_CACHE
     
-    # Load and apply LoRA adapter
-    model = PeftModel.from_pretrained(base_model, MODEL_ID, token=token)
-    
-    # Merge adapter into base model for inference
-    model = model.merge_and_unload()
-    model = model.eval()
-    
-    print("✓ Model and LoRA adapter loaded and merged successfully.")
-    
-    # Load processor
-    processor = AutoProcessor.from_pretrained(
-        BASE_MODEL_ID,
-        trust_remote_code=True,
-        token=token
-    )
-    
-    return processor, model
+    try:
+        _LOADING_LOCK = True
+        print(f"Loading base model {BASE_MODEL_ID}...")
+        
+        # Load base model with memory optimizations
+        # Use float16 to avoid int8 quantization conflicts
+        base_model = AutoModelForVision2Seq.from_pretrained(
+            BASE_MODEL_ID,
+            trust_remote_code=True,
+            torch_dtype=torch.float16,
+            device_map="auto",
+            token=token,
+            low_cpu_mem_usage=True,
+        )
+        
+        print(f"🔄 Loading LoRA adapter from {MODEL_ID}...")
+        
+        # Load and apply LoRA adapter
+        model = PeftModel.from_pretrained(
+            base_model, 
+            MODEL_ID, 
+            token=token,
+            torch_dtype=torch.float16
+        )
+        
+        # Merge adapter into base model for inference
+        model = model.merge_and_unload()
+        model = model.eval()
+        
+        print("✓ Model and LoRA adapter loaded and merged successfully")
+        
+        # Load processor
+        processor = AutoProcessor.from_pretrained(
+            BASE_MODEL_ID,
+            trust_remote_code=True,
+            token=token
+        )
+        
+        # Cache the result
+        _MODEL_CACHE = (processor, model)
+        print("✓ Model cached for future requests")
+        
+        return _MODEL_CACHE
+        
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
+        raise
+    finally:
+        _LOADING_LOCK = False
 
 
 def predict_report(model_bundle, image, prior_text, bmi, age, sex, view_type, summary=False):
