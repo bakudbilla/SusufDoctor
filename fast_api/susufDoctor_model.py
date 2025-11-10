@@ -1,5 +1,5 @@
 import torch
-from transformers import Idefics3ForConditionalGeneration, AutoProcessor
+from transformers import AutoModelForVision2Seq, AutoProcessor
 from peft import PeftModel
 from PIL import Image
 import re
@@ -10,7 +10,7 @@ load_dotenv()
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 MODEL_ID = os.getenv("MODEL_NAME", "Awinpang/smolvlm-finetuned-xray")
-BASE_MODEL_ID = "HuggingFaceM4/Idefics3-8B-Llama3"  # Base model
+BASE_MODEL_ID = "HuggingFaceTB/SmolVLM-500M-Instruct"  # Correct base model
 
 def load_model(token=HF_TOKEN):
     """
@@ -20,13 +20,12 @@ def load_model(token=HF_TOKEN):
     print(f"Loading base model {BASE_MODEL_ID}...")
     
     # Load base model with memory optimizations
-    base_model = Idefics3ForConditionalGeneration.from_pretrained(
+    base_model = AutoModelForVision2Seq.from_pretrained(
         BASE_MODEL_ID,
         trust_remote_code=True,
-        torch_dtype=torch.float16,  # Use float16 instead of bfloat16 to save memory
+        torch_dtype=torch.float16,
         device_map="auto",
         token=token,
-        load_in_8bit=True,  # 8-bit quantization for memory efficiency
     )
     
     print(f"Loading LoRA adapter from {MODEL_ID}...")
