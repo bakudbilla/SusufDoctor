@@ -71,13 +71,13 @@ async def startup_event():
         print(f"Google Cloud init warning: {e}")
     
     # Pre-load model on startup
-    try:
-        print("Pre-loading ML model...")
-        from routers.predict_routes import get_model
-        get_model()
-        print("ML model loaded and cached successfully")
-    except Exception as e:
-        print(f"Model pre-load warning: {e}")
+    # try:
+    #     print("Pre-loading ML model...")
+    #     from routers.predict_routes import get_model
+    #     get_model()
+    #     print("ML model loaded and cached successfully")
+    # except Exception as e:
+    #     print(f"Model pre-load warning: {e}")
 
 # ---------------------------------------------------------
 # INCLUDE ALL ROUTERS
