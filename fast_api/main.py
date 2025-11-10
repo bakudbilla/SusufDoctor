@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -8,17 +9,6 @@ import uvicorn
 
 # Load environment variables first
 load_dotenv()
-
-# Initialize FastAPI app
-app = FastAPI(
-    title="SuSufDoctor API",
-    description="Radiology Report Generation System for Radiologists",
-    version="1.0.0",
-)
-
-# ---------------------------------------------------------
-# CORS CONFIGURATION - MUST BE FIRST MIDDLEWARE
-# ---------------------------------------------------------
 origins = [
     "https://susuf-doctor.vercel.app",
     "https://susuf-doctor-git-main-awinpangs-projects.vercel.app", 
@@ -26,6 +16,28 @@ origins = [
     "http://localhost:5173",
     "http://localhost:3000"
 ]
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("Starting up SuSufDoctor API...")
+    print(f"Allowed Origins: {origins}")
+    try:
+        initialize_gcloud()
+        print("Google Cloud initialized successfully")
+    except Exception as e:
+        print(f"Google Cloud init FAILED: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    yield
+    
+# Initialize FastAPI app
+app = FastAPI(
+    title="SuSufDoctor API",
+    description="Radiology Report Generation System for Radiologists",
+    version="1.0.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,9 +48,7 @@ app.add_middleware(
     max_age=3600,
 )
 
-# ---------------------------------------------------------
-# ROOT ENDPOINT
-# ---------------------------------------------------------
+
 @app.get("/")
 async def root():
     return {
@@ -47,9 +57,7 @@ async def root():
         "version": "1.0.0"
     }
 
-# ---------------------------------------------------------
-# HEALTH CHECK ENDPOINT
-# ---------------------------------------------------------
+
 @app.get("/health")
 async def health_check():
     return {
@@ -57,17 +65,8 @@ async def health_check():
         "service": "SuSufDoctor API"
     }
 
-# ---------------------------------------------------------
-# SAFE STARTUP INITIALIZATION
-# ---------------------------------------------------------
-@app.get("/ping")
-async def ping():
-    return {"message": "API is alive"}
 
 
-# ---------------------------------------------------------
-# INCLUDE ALL ROUTERS
-# ---------------------------------------------------------
 app.include_router(auth_routes.router, tags=["Authentication"])
 app.include_router(predict_routes.router, tags=["Predictions"])
 app.include_router(patient_routes.router, tags=["Patients"])
