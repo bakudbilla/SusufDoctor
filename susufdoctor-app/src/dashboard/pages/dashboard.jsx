@@ -56,7 +56,7 @@ export function Dashboard({ onNavigate }) {
         const patientsData = await patientsResponse.json();
         const patientsList = patientsData.data || [];
         
-        const totalScans = patientsList.length;
+        const totalScans = patientsList.reduce((sum, p) => sum + (p.visit_count || 1), 0);
         const today = new Date().toISOString().split("T")[0];
         const completedToday = patientsList.filter(p => {
           const createdDate = p.latest_visit?.split("T")[0];
@@ -75,10 +75,35 @@ export function Dashboard({ onNavigate }) {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("radiologist_name");
-    window.location.href = "/login";
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      const token = localStorage.getItem("access_token");
+
+      // Call logout endpoint
+      await fetch(`${API_URL}auth/logout`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      // Clear local storage
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("radiologist_name");
+      
+      // Redirect to sign in page
+      window.location.href = "/signin";
+    } catch (error) {
+      console.error("Error logging out:", error);
+      // Clear local storage and redirect on error
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("radiologist_name");
+      window.location.href = "/signin";
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   const statsCards = [
@@ -158,7 +183,6 @@ export function Dashboard({ onNavigate }) {
       <PatientsPerMonthChart />
 
       <FiltersQuickAction onNavigate={onNavigate} />
-
     </div>
   );
 }
