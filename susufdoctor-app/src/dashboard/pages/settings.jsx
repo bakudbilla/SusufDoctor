@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Camera, Save,  Mail, Phone, User } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Camera, Save, Mail, Phone, User, Loader } from "lucide-react";
+import { API_URL } from "../../utils/constant";
 
 export default function Settings() {
   const [profilePicture, setProfilePicture] = useState(null);
@@ -7,15 +8,57 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errors, setErrors] = useState({});
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [formData, setFormData] = useState({
-    first_name: "John",
-    last_name: "Doe",
-    email: "john.doe@radiologist.com",
-    phone: "+1 (555) 123-4567",
-    license_number: "LIC123456",
-    specialization: "Diagnostic Radiology",
+    full_name: "",
+    email: "",
+    phone: "",
+    license_number: "",
+    specialization: "",
   });
+
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
+
+  const fetchProfileData = async () => {
+    try {
+      setInitialLoading(true);
+      const token = localStorage.getItem("access_token");
+      
+      const response = await fetch(`${API_URL}auth/profile`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const user = data.user;
+        setFormData({
+          full_name: user.full_name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          license_number: user.license_number || "",
+          specialization: user.specialization || "",
+        });
+        
+        // Load saved profile picture URL from backend
+        if (user.profile_picture_url) {
+          setPreviewUrl(user.profile_picture_url);
+        }
+      } else {
+        setErrors({ ...errors, submit: "Failed to fetch profile data" });
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      setErrors({ ...errors, submit: "Error loading profile" });
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleProfilePictureChange = (e) => {
     const file = e.target.files?.[0];
@@ -42,29 +85,102 @@ export default function Settings() {
 
   const handleSaveProfile = async () => {
     setLoading(true);
+    setErrors({});
+    
     try {
-      setTimeout(() => {
+      const token = localStorage.getItem("access_token");
+      
+      // If profile picture is uploaded, upload it first
+      if (profilePicture) {
+        const formDataWithFile = new FormData();
+        formDataWithFile.append("profile_picture", profilePicture);
+        
+        console.log("Uploading profile picture...");
+        const uploadResponse = await fetch(`${API_URL}auth/upload-profile-picture`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+          body: formDataWithFile,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json().catch(() => ({}));
+          console.error("Upload response error:", errorData);
+          setErrors({ submit: errorData.detail || "Failed to upload profile picture" });
+          setLoading(false);
+          return;
+        }
+
+        console.log("Profile picture uploaded successfully");
+        // Clear the profile picture after successful upload
+        setProfilePicture(null);
+      }
+
+      // Update profile data
+      console.log("Updating profile data...");
+      const response = await fetch(`${API_URL}auth/profile`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Profile updated successfully", data);
+        
         setSuccessMsg("Profile updated successfully!");
         setLoading(false);
-        setTimeout(() => setSuccessMsg(""), 3000);
-      }, 1000);
+        
+        // Fetch updated profile to confirm changes
+        await fetchProfileData();
+        
+        // Show success message for 3 seconds
+        setTimeout(() => {
+          setSuccessMsg("");
+        }, 3000);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Profile update error:", errorData);
+        setErrors({ submit: errorData.detail || "Failed to update profile" });
+        setLoading(false);
+      }
     } catch (error) {
-      setErrors({ ...errors, submit: "Failed to update profile" });
+      console.error("Error saving profile:", error);
+      setErrors({ submit: error.message || "Failed to update profile" });
       setLoading(false);
     }
   };
 
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-linear-to-br from-cyan-50 via-teal-50 to-cyan-100 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader className="h-8 w-8 animate-spin text-[#0088FF]" />
+          <p className="text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-linear-to-br from-cyan-50 via-teal-50 to-cyan-100 flex flex-col">
-    
-
       <div className="flex flex-1 justify-center items-center px-4 py-12">
         <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-3xl">
           {successMsg && (
             <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-6 py-4 rounded-lg flex items-center gap-3">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               {successMsg}
+            </div>
+          )}
+
+          {errors.submit && (
+            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg flex items-center gap-3">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              {errors.submit}
             </div>
           )}
 
@@ -108,31 +224,17 @@ export default function Settings() {
           </div>
 
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  First Name
-                </label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0088FF]"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Last Name
-                </label>
-                <input
-                  type="text"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0088FF]"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                name="full_name"
+                value={formData.full_name}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0088FF]"
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -197,7 +299,16 @@ export default function Settings() {
             disabled={loading}
             className="mt-8 w-full cursor-pointer bg-[#0088FF] hover:bg-blue-600 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
           >
-            <Save size={18} /> Save Changes
+            {loading ? (
+              <>
+                <Loader className="h-5 w-5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={18} /> Save Changes
+              </>
+            )}
           </button>
         </div>
       </div>

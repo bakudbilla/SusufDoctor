@@ -233,13 +233,12 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
     setIsEditMode(true);
   };
 
-  const handleSaveAndDownload = async () => {
+  const handleSaveChanges = async () => {
     setIsSaving(true);
-    setSubmitStatus(null);
-    
     try {
       const token = localStorage.getItem("access_token");
       
+      // Create a FormData object for the edit request
       const formDataToSend = new FormData();
       formDataToSend.append("report_text", reportText);
       formDataToSend.append("firestore_id", firestoreId);
@@ -250,15 +249,11 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       formDataToSend.append("bmi", formData.bmi);
       formDataToSend.append("view_type", formData.xrayView);
 
-      console.log("🔄 Sending edit request...", {
-        firestoreId,
-        reportTextLength: reportText.length,
-        patientName: formData.patientName
-      });
-
       const response = await fetch(`${API_URL}predict/`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+        },
         body: formDataToSend,
       });
 
@@ -275,26 +270,83 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       }
 
       const result = await response.json();
-      console.log("✅ Edit save response:", result);
-
-      // Update the PDF URL with the new edited PDF URL
-      const newPdfUrl = result.data?.generated_report_url;
-      if (newPdfUrl) {
-        setPdfUrl(newPdfUrl);
-      }
-
+      
+      // Update the state with the new PDF URL and report text
       setOriginalReportText(reportText);
       setIsEditMode(false);
+      setPdfUrl(result.data?.generated_report_url);
       
       setSubmitStatus({
         type: "success",
-        message: "Report saved successfully! You can now download the updated PDF.",
+        message: "Report saved successfully!",
       });
 
-      // Don't auto-download - let user choose when to download
-      
     } catch (error) {
-      console.error("❌ Error saving report:", error);
+      console.error("Error saving report:", error);
+      setSubmitStatus({
+        type: "error",
+        message: `Failed to save report: ${error.message}`,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndDownload = async () => {
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem("access_token");
+      
+      // Create a FormData object for the edit request
+      const formDataToSend = new FormData();
+      formDataToSend.append("report_text", reportText);
+      formDataToSend.append("firestore_id", firestoreId);
+      formDataToSend.append("is_edit", "true");
+      formDataToSend.append("patient_name", formData.patientName);
+      formDataToSend.append("age", formData.age);
+      formDataToSend.append("sex", formData.sex);
+      formDataToSend.append("bmi", formData.bmi);
+      formDataToSend.append("view_type", formData.xrayView);
+
+      const response = await fetch(`${API_URL}predict/`, {
+        method: "POST",
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+        },
+        body: formDataToSend,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        let message = "Unknown API error";
+        try {
+          const data = JSON.parse(text);
+          message = data.detail?.[0]?.msg || data.message || JSON.stringify(data.detail || data);
+        } catch {
+          message = text;
+        }
+        throw new Error(message);
+      }
+
+      const result = await response.json();
+      
+      // Update the state with the new PDF URL and report text
+      setOriginalReportText(reportText);
+      setIsEditMode(false);
+      setPdfUrl(result.data?.generated_report_url);
+      
+      setSubmitStatus({
+        type: "success",
+        message: "Report saved! Downloading updated PDF...",
+      });
+
+      // Download the new PDF
+      setTimeout(() => {
+        handleDownloadReport();
+      }, 500);
+
+    } catch (error) {
+      console.error("Error saving report:", error);
       setSubmitStatus({
         type: "error",
         message: `Failed to save report: ${error.message}`,
@@ -325,7 +377,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-blue-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6">
       <div className="max-w-3xl mx-auto">
         <button
           onClick={onBack}
@@ -347,9 +399,9 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                 placeholder="Enter patient name"
                 value={formData.patientName}
                 onChange={(e) => handleChange("patientName", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
-              {errors.patientName && <p className="text-xs text-red-500">{errors.patientName}</p>}
+              {errors.patientName && <p className="text-xs text-red-500 mt-1">{errors.patientName}</p>}
             </div>
 
             <div>
@@ -358,20 +410,21 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                 type="number"
                 value={formData.age}
                 onChange={(e) => handleChange("age", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
-              {errors.age && <p className="text-xs text-red-500">{errors.age}</p>}
+              {errors.age && <p className="text-xs text-red-500 mt-1">{errors.age}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700">BMI *</label>
               <input
                 type="number"
+                step="0.1"
                 value={formData.bmi}
                 onChange={(e) => handleChange("bmi", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
-              {errors.bmi && <p className="text-xs text-red-500">{errors.bmi}</p>}
+              {errors.bmi && <p className="text-xs text-red-500 mt-1">{errors.bmi}</p>}
             </div>
 
             <div>
@@ -379,13 +432,13 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
               <select
                 value={formData.sex}
                 onChange={(e) => handleChange("sex", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select sex</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
               </select>
-              {errors.sex && <p className="text-xs text-red-500">{errors.sex}</p>}
+              {errors.sex && <p className="text-xs text-red-500 mt-1">{errors.sex}</p>}
             </div>
 
             <div className="md:col-span-2">
@@ -393,13 +446,13 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
               <select
                 value={formData.xrayView}
                 onChange={(e) => handleChange("xrayView", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select view</option>
                 <option value="Lateral view">Lateral view</option>
                 <option value="Frontal view">Frontal view</option>
               </select>
-              {errors.xrayView && <p className="text-xs text-red-500">{errors.xrayView}</p>}
+              {errors.xrayView && <p className="text-xs text-red-500 mt-1">{errors.xrayView}</p>}
             </div>
           </div>
 
@@ -463,7 +516,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                 {!isEditMode && (
                   <button
                     onClick={handleEditReport}
-                    className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
                   >
                     <Edit2 className="h-4 w-4" />
                     Edit Report
@@ -481,9 +534,9 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                   />
                   <div className="flex gap-3">
                     <button
-                      onClick={handleSaveAndDownload}
+                      onClick={handleSaveChanges}
                       disabled={isSaving}
-                      className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                     >
                       {isSaving ? (
                         <>
@@ -496,6 +549,14 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                           Save Changes
                         </>
                       )}
+                    </button>
+                    <button
+                      onClick={handleSaveAndDownload}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      Save & Download
                     </button>
                     <button
                       onClick={handleCancelEdit}
@@ -617,7 +678,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
               <button
                 onClick={handleGenerateReport}
                 disabled={isGenerating}
-                className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-linear-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transform transition-all disabled:opacity-50 shadow-lg"
               >
                 {isGenerating ? (
                   <>
@@ -632,14 +693,14 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
               <>
                 <button
                   onClick={handleViewReport}
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-linear-to-r from-green-400 to-green-600 hover:scale-105 transform transition-all"
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 hover:scale-105 transform transition-all shadow-lg"
                 >
                   <Eye className="h-4 w-4" />
                   View PDF
                 </button>
                 <button
                   onClick={handleDownloadReport}
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-linear-to-r from-blue-400 via-cyan-400 to-blue-500 hover:scale-105 transform transition-all"
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transform transition-all shadow-lg"
                 >
                   <Download className="h-4 w-4" />
                   Download PDF

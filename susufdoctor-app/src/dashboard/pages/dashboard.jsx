@@ -12,6 +12,7 @@ export function Dashboard({ onNavigate }) {
     completedToday: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const storedName = localStorage.getItem("radiologist_name");
@@ -80,8 +81,8 @@ export function Dashboard({ onNavigate }) {
       setLoggingOut(true);
       const token = localStorage.getItem("access_token");
 
-      // Call logout endpoint
-      await fetch(`${API_URL}auth/logout`, {
+      // Call logout endpoint and wait for response
+      const response = await fetch(`${API_URL}auth/logout`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -89,18 +90,23 @@ export function Dashboard({ onNavigate }) {
         },
       });
 
+      // Check if response is ok, but proceed with logout either way
+      if (!response.ok) {
+        console.warn("Logout endpoint returned error, but proceeding with local cleanup");
+      }
+
       // Clear local storage
       localStorage.removeItem("access_token");
       localStorage.removeItem("radiologist_name");
       
-      // Redirect to sign in page
-      window.location.href = "/signin";
+      // Redirect to signup page
+      window.location.href = "/signup";
     } catch (error) {
       console.error("Error logging out:", error);
       // Clear local storage and redirect on error
       localStorage.removeItem("access_token");
       localStorage.removeItem("radiologist_name");
-      window.location.href = "/signin";
+      window.location.href = "/signup";
     } finally {
       setLoggingOut(false);
     }
@@ -143,11 +149,12 @@ export function Dashboard({ onNavigate }) {
         </div>
         <button
           onClick={handleLogout}
-          className="group flex items-center cursor-pointer gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg 
+          disabled={loggingOut}
+          className="group flex items-center cursor-pointer gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-red-400 disabled:cursor-not-allowed text-white font-medium rounded-lg 
              transition-all duration-300 h-fit transform hover:scale-105 active:scale-95"
         >
           <LogOut className="h-4 w-4 transition-transform duration-300 text-white group-hover:rotate-12 group-hover:translate-x-1" />
-          <span className="group-hover:animate-pulse">Logout</span>
+          <span className="group-hover:animate-pulse">{loggingOut ? "Logging out..." : "Logout"}</span>
         </button>
       </div>
 

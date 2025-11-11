@@ -2,7 +2,8 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import logo from '../../../assets/logo2.png'
 import { Upload, Users, Home, Settings, User, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { API_URL } from "../../../utils/constant";
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -12,6 +13,52 @@ const navItems = [
 
 export function Navigation({ currentPage, onNavigate }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [radiologistName, setRadiologistName] = useState("Dr. Unknown");
+  const [profilePicture, setProfilePicture] = useState(null);
+
+  useEffect(() => {
+    fetchRadiologistName();
+  }, []);
+
+  const fetchRadiologistName = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const storedName = localStorage.getItem("radiologist_name");
+
+      // Try to get from API first
+      try {
+        const response = await fetch(`${API_URL}auth/profile`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const user = data.user;
+          const fullName = user.full_name || storedName || "Dr. Unknown";
+          setRadiologistName(fullName);
+          localStorage.setItem("radiologist_name", fullName);
+          
+          // Set profile picture if available
+          if (user.profile_picture_url) {
+            setProfilePicture(user.profile_picture_url);
+          }
+          return;
+        }
+      } catch (e) {
+        console.log("Auth/profile endpoint not available, using localStorage");
+      }
+
+      // Fallback to localStorage
+      if (storedName) {
+        setRadiologistName(storedName);
+      }
+    } catch (error) {
+      console.error("Error fetching radiologist name:", error);
+    }
+  };
 
   const handleNavigate = (id) => {
     onNavigate(id);
@@ -79,14 +126,27 @@ export function Navigation({ currentPage, onNavigate }) {
         {/* User section */}
         <div className="border-t p-4 space-y-4">
           <div className="border-t pt-4 flex items-center space-x-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shrink-0">
-              <User className="h-4 w-4" />
-            </div>
+            {profilePicture ? (
+              <img
+                src={profilePicture}
+                alt="Profile"
+                className="h-8 w-8 rounded-full object-cover shrink-0"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground shrink-0">
+                <User className="h-4 w-4" />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Dr. Awinpang Bernice</p>
+              <p className="text-sm font-medium truncate">{radiologistName}</p>
               <p className="text-xs text-muted-foreground truncate">Radiologist</p>
             </div>
-            <Button onClick={() => handleNavigate('settings')} variant="ghost" size="sm" className="shrink-0">
+            <Button 
+              onClick={() => handleNavigate('settings')} 
+              variant="ghost" 
+              size="sm" 
+              className="shrink-0 hover:bg-gray-100"
+            >
               <Settings className="h-4 w-4" />
             </Button>
           </div>
