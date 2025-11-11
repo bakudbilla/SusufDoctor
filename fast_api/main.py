@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 import os
 from dependencies import initialize_gcloud
 from routers import auth_routes, predict_routes, patient_routes
-import uvicorn
 
 # Load environment variables first
 load_dotenv()
@@ -71,22 +70,20 @@ async def startup_event():
         print(f"Google Cloud init warning: {e}")
     
     # Pre-load model on startup
-    # try:
-    #     print("Pre-loading ML model...")
-    #     from routers.predict_routes import get_model
-    #     get_model()
-    #     print("ML model loaded and cached successfully")
-    # except Exception as e:
-    #     print(f"Model pre-load warning: {e}")
+    try:
+        print("Pre-loading ML model...")
+        model = predict_routes.get_model()
+        print("ML model loaded and cached successfully")
+    except Exception as e:
+        print(f"Model pre-load warning: {e}")
 
-# ---------------------------------------------------------
-# INCLUDE ALL ROUTERS
-# ---------------------------------------------------------
+
 app.include_router(auth_routes.router, tags=["Authentication"])
 app.include_router(predict_routes.router, tags=["Predictions"])
 app.include_router(patient_routes.router, tags=["Patients"])
 
 
 if __name__ == "__main__":
+    import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)

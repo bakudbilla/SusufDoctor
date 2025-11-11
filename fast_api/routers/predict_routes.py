@@ -16,6 +16,7 @@ from susufDoctor_model import load_model, predict_report
 
 router = APIRouter(prefix="/predict", tags=["Prediction"])
 
+
 def get_model():
     """
     Get the cached model for use in main.py startup and endpoints.
@@ -23,17 +24,19 @@ def get_model():
     """
     return load_model()
 
+
 def upload_to_bucket(bucket: storage.Bucket, file_bytes: bytes, destination_path: str, content_type: str):
     """Upload file to GCS and return signed URL"""
     blob = bucket.blob(destination_path)
     blob.upload_from_string(file_bytes, content_type=content_type)
-    
+
     signed_url = blob.generate_signed_url(
         version="v4",
         expiration=timedelta(days=7),
         method="GET"
     )
     return signed_url
+
 
 def extract_text_from_pdf(pdf_bytes):
     """Extract text from PDF"""
@@ -43,11 +46,11 @@ def extract_text_from_pdf(pdf_bytes):
             text += page.get_text("text")
     return text.strip()
 
+
 def normalize_view_type(view_type: str) -> str:
     """Normalize various view type inputs to standard format"""
-    view_type = view_type.strip().lower()
-    
-    # Map common variations to standard values
+    view_type = (view_type or "").strip().lower()
+
     view_mapping = {
         'frontal': 'Frontal',
         'frontal view': 'Frontal',
@@ -62,39 +65,39 @@ def normalize_view_type(view_type: str) -> str:
         'other': 'Other',
         'unknown': 'Other'
     }
-    
-    # Return mapped value or capitalize if not found
-    return view_mapping.get(view_type, view_type.capitalize())
+
+    return view_mapping.get(view_type, view_type.capitalize() if view_type else 'Other')
+
 
 def create_proper_pdf(report_text: str, patient_info: dict, is_edited: bool = False) -> bytes:
-    """Create properly formatted PDF with text wrapping"""
+    """
+    Create properly formatted PDF with:
+    - Uppercase section headers
+    - Lowercased clinical text (consistent with model output)
+    """
     buffer = io.BytesIO()
-    
-    # Create the PDF object
-    doc = SimpleDocTemplate(buffer, pagesize=letter,
-                          rightMargin=72, leftMargin=72,
-                          topMargin=72, bottomMargin=18)
-    
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=72, leftMargin=72,
+        topMargin=72, bottomMargin=18
+    )
+
     styles = getSampleStyleSheet()
-    
-    # Create custom styles
     title_style = styles["Heading1"]
     title_style.alignment = 1  # Center
-    
     header_style = styles["Heading2"]
     normal_style = styles["Normal"]
-    
-    # Build the story (content)
+
     story = []
-    
-    # Title with edit indicator
+
     title = "SuSufDoctor Radiology Report"
     if is_edited:
         title += " (Edited)"
     story.append(Paragraph(title, title_style))
     story.append(Spacer(1, 20))
-    
-    # Patient information
+
     patient_info_text = f"""
     <b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br/>
     <b>Patient:</b> {patient_info['patient_name']}<br/>
@@ -105,40 +108,44 @@ def create_proper_pdf(report_text: str, patient_info: dict, is_edited: bool = Fa
     <b>BMI:</b> {patient_info['bmi']}
     """
     if is_edited:
-        patient_info_text += f"<br/><b>Status:</b> <font color='blue'>Edited and Verified</font>"
-    
+        patient_info_text += f"<br/><b>Status:</b> Edited and Verified"
+
     story.append(Paragraph(patient_info_text, normal_style))
     story.append(Spacer(1, 20))
-    
-    # Add a line separator
+
     story.append(Paragraph("<hr/>", normal_style))
     story.append(Spacer(1, 20))
-    
-    # Report content with proper formatting
-    paragraphs = report_text.split('\n\n')
-    
+
+    # Consistent PDF layout for lowercase clinical text
+    paragraphs = report_text.split("\n\n")
+
     for paragraph in paragraphs:
-        if paragraph.strip():
-            # Check if this looks like a section header
-            if paragraph.strip().endswith(':') or paragraph.strip().startswith('**'):
-                # It's a header
-                clean_paragraph = paragraph.replace('**', '').strip()
-                story.append(Paragraph(f"<b>{clean_paragraph}</b>", header_style))
-            else:
-                # It's normal text
-                story.append(Paragraph(paragraph, normal_style))
-            story.append(Spacer(1, 12))
-    
-    # Add edit timestamp if edited
+        if not paragraph.strip():
+            continue
+
+        p = paragraph.strip()
+
+        # Keep section headers uppercase and bold
+        if p.endswith(":"):
+            story.append(Paragraph(f"<b>{p.upper()}</b>", header_style))
+            story.append(Spacer(1, 10))
+        else:
+            # Lowercase text in PDF body for consistency
+            story.append(Paragraph(p.lower(), normal_style))
+            story.append(Spacer(1, 8))
+
     if is_edited:
         story.append(Spacer(1, 20))
         story.append(Paragraph("<hr/>", normal_style))
-        story.append(Paragraph(f"<i>Report edited and verified on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>", normal_style))
-    
-    # Build the PDF
+        story.append(Paragraph(
+            f"<i>Report edited and verified on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>",
+            normal_style
+        ))
+
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
+
 
 async def handle_edit_mode(
     firestore_id: str,
@@ -154,38 +161,32 @@ async def handle_edit_mode(
 ):
     """Handle editing an existing report"""
     try:
-        # Get the existing patient record
         doc_ref = db.collection("patients").document(firestore_id)
         doc = doc_ref.get()
-        
+
         if not doc.exists:
             raise HTTPException(status_code=404, detail="Patient record not found")
-        
+
         existing_data = doc.to_dict()
-        
-        # Use existing data if not provided in edit
+
         patient_name = patient_name or existing_data.get("patient_name")
         age = age or existing_data.get("age")
-        sex = sex or existing_data.get("sex")
+        sex = (sex or existing_data.get("sex", "")).strip().lower()
         bmi = bmi or existing_data.get("bmi")
         view_type = view_type or existing_data.get("view_type")
-        
-        # Validate and normalize gender
-        sex = sex.strip().lower()
+
         valid_genders = ['male', 'female', 'other']
         if sex not in valid_genders:
             raise HTTPException(
                 status_code=400,
                 detail=f"Gender must be one of: {', '.join(valid_genders)}. Received: '{sex}'"
             )
-        
-        # Normalize view type
+
         view_type = normalize_view_type(view_type)
         valid_views = ['PA', 'AP', 'Lateral', 'Frontal', 'Other']
         if view_type not in valid_views:
             view_type = 'Other'
 
-        # Create patient info for PDF
         patient_info = {
             'patient_name': patient_name,
             'radiologist_name': current_user['full_name'],
@@ -195,18 +196,16 @@ async def handle_edit_mode(
             'bmi': bmi
         }
 
-        # Generate edited PDF
         pdf_bytes = create_proper_pdf(report_text, patient_info, is_edited=True)
 
-        # Upload edited PDF to GCS
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-        edited_filename = f"edited_reports/{timestamp}_{patient_name}_Edited_Report.pdf"
+        safe_name = (patient_name or "patient").replace("/", "_").replace("\\", "_")
+        edited_filename = f"edited_reports/{timestamp}_{safe_name}_Edited_Report.pdf"
         edited_pdf_url = upload_to_bucket(bucket, pdf_bytes, edited_filename, "application/pdf")
 
-        # Update Firestore document
         update_data = {
             "report_text": report_text,
-            "generated_report_url": edited_pdf_url,  # Update main report URL
+            "generated_report_url": edited_pdf_url,
             "last_edited_at": datetime.now().isoformat(),
             "last_edited_by": current_user["full_name"],
             "last_edited_by_email": current_user["email"],
@@ -216,9 +215,9 @@ async def handle_edit_mode(
             "sex": sex,
             "bmi": bmi,
             "view_type": view_type,
-            "original_report_url": existing_data.get("generated_report_url")  # Keep original
+            "original_report_url": existing_data.get("generated_report_url")
         }
-        
+
         doc_ref.update(update_data)
 
         return JSONResponse({
@@ -241,6 +240,7 @@ async def handle_edit_mode(
         print(f"Edit mode error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Report update failed: {str(e)}")
 
+
 async def handle_new_report_mode(
     xray_image: UploadFile,
     prior_report: UploadFile,
@@ -253,80 +253,68 @@ async def handle_new_report_mode(
     db: firestore.Client,
     bucket: storage.Bucket
 ):
-    """Handle creating a new report (original logic)"""
-    # Validate required fields for new report
+    """Handle creating a new report"""
     if not xray_image:
         raise HTTPException(status_code=400, detail="X-ray image is required for new reports")
-    if not all([bmi, age, sex, view_type, patient_name]):
+    if not all([bmi is not None, age is not None, sex, view_type, patient_name]):
         raise HTTPException(status_code=400, detail="All patient information is required for new reports")
 
-    # Validate and normalize gender
-    sex = sex.strip().lower()
+    sex = (sex or "").strip().lower()
     valid_genders = ['male', 'female', 'other']
     if sex not in valid_genders:
         raise HTTPException(
             status_code=400,
             detail=f"Gender must be one of: {', '.join(valid_genders)}. Received: '{sex}'"
         )
-    
-    # Normalize view type
+
     original_view_type = view_type
     view_type = normalize_view_type(view_type)
     valid_views = ['PA', 'AP', 'Lateral', 'Frontal', 'Other']
-    
     if view_type not in valid_views:
-        print(f"View type '{original_view_type}' normalized to 'Other'")
         view_type = 'Other'
 
-    # Validate image file
-    if not xray_image.content_type.startswith('image/'):
+    if not (xray_image.content_type or "").startswith('image/'):
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Uploaded file must be an image (JPEG, PNG, etc.)"
         )
 
-    # Read and validate file size
     image_bytes = await xray_image.read()
     if len(image_bytes) > 10 * 1024 * 1024:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Image file too large (max 10MB)"
         )
-    
-    # Process image
+
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-    # Extract text from prior report
     prior_text = ""
     prior_report_url = None
     if prior_report:
         if not prior_report.filename.lower().endswith('.pdf'):
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail="Prior report must be a PDF file"
             )
-        
+
         pdf_bytes = await prior_report.read()
         prior_text = extract_text_from_pdf(pdf_bytes)
         prior_filename = f"reports/{datetime.now().strftime('%Y%m%d-%H%M%S')}_{prior_report.filename}"
         prior_report_url = upload_to_bucket(bucket, pdf_bytes, prior_filename, "application/pdf")
 
-    # Get model (will use cached version from startup if already loaded)
     model_bundle = get_model()
-    
-    # Generate AI report
+
     result = predict_report(
-        model_bundle, 
-        image, 
+        model_bundle,
+        image,
         prior_text,
-        bmi, 
-        age, 
-        sex, 
+        bmi,
+        age,
+        sex,
         view_type
     )
     report_text = result["full_text"]
 
-    # Create patient info for PDF
     patient_info = {
         'patient_name': patient_name,
         'radiologist_name': current_user['full_name'],
@@ -337,47 +325,92 @@ async def handle_new_report_mode(
         'bmi': bmi
     }
 
-    # Generate proper PDF report with text wrapping
     pdf_bytes = create_proper_pdf(report_text, patient_info, is_edited=False)
 
-    # Upload files to GCS
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-    
-    xray_filename = f"xrays/{timestamp}_{xray_image.filename}"
+    safe_img_name = xray_image.filename.replace("/", "_").replace("\\", "_")
+
+    xray_filename = f"xrays/{timestamp}_{safe_img_name}"
     xray_url = upload_to_bucket(bucket, image_bytes, xray_filename, xray_image.content_type)
 
     report_filename = f"generated_reports/{timestamp}_SuSufDoctor_Report.pdf"
     generated_report_url = upload_to_bucket(bucket, pdf_bytes, report_filename, "application/pdf")
 
-    # Store metadata in Firestore
-    doc_ref = db.collection("patients").document()
-    doc_ref.set({
-        "patient_id": doc_ref.id,
-        "patient_name": patient_name,
-        "age": age,
-        "sex": sex,
-        "bmi": bmi,
-        "view_type": view_type,
-        "original_view_type": original_view_type,  # Store original input
-        "created_at": datetime.now().isoformat(),
-        "radiologist_id": current_user["user_id"],
-        "radiologist_name": current_user["full_name"],
-        "radiologist_email": current_user["email"],
-        "xray_url": xray_url,
-        "prior_report_url": prior_report_url,
-        "generated_report_url": generated_report_url,
-        "report_text": report_text,
-        "status": "completed",
-        "is_edited": False,
-        "original_report_url": generated_report_url  # Store original URL
-    })
+    # CHECK IF PATIENT ALREADY EXISTS
+    existing_patient_doc = None
+    try:
+        query = db.collection("patients").where(
+            "patient_name", "==", patient_name
+        ).where(
+            "age", "==", age
+        ).where(
+            "sex", "==", sex
+        ).limit(1).stream()
+        
+        for doc in query:
+            existing_patient_doc = doc
+            break
+    except Exception as e:
+        print(f"Error checking for existing patient: {e}")
+    
+    if existing_patient_doc:
+        # Patient exists - use their existing patient_id and create a new visit document
+        patient_id = existing_patient_doc.to_dict().get("patient_id")
+        print(f"Found existing patient: {patient_id}")
+        
+        doc_ref = db.collection("patients").document()
+        doc_ref.set({
+            "patient_id": patient_id,  # USE EXISTING PATIENT ID
+            "patient_name": patient_name,
+            "age": age,
+            "sex": sex,
+            "bmi": bmi,
+            "view_type": view_type,
+            "original_view_type": original_view_type,
+            "created_at": datetime.now().isoformat(),
+            "radiologist_id": current_user["user_id"],
+            "radiologist_name": current_user["full_name"],
+            "radiologist_email": current_user["email"],
+            "xray_url": xray_url,
+            "prior_report_url": prior_report_url,
+            "generated_report_url": generated_report_url,
+            "report_text": report_text,
+            "status": "completed",
+            "is_edited": False,
+            "original_report_url": generated_report_url
+        })
+    else:
+        # New patient - create new document with new patient_id
+        doc_ref = db.collection("patients").document()
+        patient_id = doc_ref.id
+        print(f"Creating new patient: {patient_id}")
+        
+        doc_ref.set({
+            "patient_id": patient_id,  # NEW PATIENT ID
+            "patient_name": patient_name,
+            "age": age,
+            "sex": sex,
+            "bmi": bmi,
+            "view_type": view_type,
+            "original_view_type": original_view_type,
+            "created_at": datetime.now().isoformat(),
+            "radiologist_id": current_user["user_id"],
+            "radiologist_name": current_user["full_name"],
+            "radiologist_email": current_user["email"],
+            "xray_url": xray_url,
+            "prior_report_url": prior_report_url,
+            "generated_report_url": generated_report_url,
+            "report_text": report_text,
+            "status": "completed",
+            "is_edited": False,
+            "original_report_url": generated_report_url
+        })
 
-    # Return response
     return JSONResponse({
         "status": "success",
         "message": "Report generated and saved successfully.",
         "data": {
-            "patient_id": doc_ref.id,
+            "patient_id": patient_id,
             "patient_name": patient_name,
             "xray_url": xray_url,
             "prior_report_url": prior_report_url,
@@ -389,11 +422,11 @@ async def handle_new_report_mode(
         }
     })
 
+
 @router.get("/health")
 async def health_check():
     """Check if model is loaded and API is healthy"""
     try:
-        # This will return cached model if already loaded
         model_bundle = get_model()
         return {
             "status": "healthy",
@@ -405,6 +438,7 @@ async def health_check():
             {"status": "unhealthy", "error": str(e)},
             status_code=500
         )
+
 
 @router.post("")
 async def predict(
@@ -424,7 +458,6 @@ async def predict(
 ):
     """Generate or update radiology report from X-ray image"""
     try:
-        # EDIT MODE: Update existing report
         if is_edit and firestore_id and report_text:
             return await handle_edit_mode(
                 firestore_id=firestore_id,
@@ -438,8 +471,7 @@ async def predict(
                 db=db,
                 bucket=bucket
             )
-        
-        # NEW REPORT MODE: Original logic with validations
+
         return await handle_new_report_mode(
             xray_image=xray_image,
             prior_report=prior_report,
@@ -460,6 +492,6 @@ async def predict(
         import traceback
         traceback.print_exc()
         return JSONResponse(
-            {"status": "error", "message": f"Internal server error: {str(e)}"}, 
+            {"status": "error", "message": f"Internal server error: {str(e)}"},
             status_code=500
         )

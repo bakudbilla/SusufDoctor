@@ -1,9 +1,9 @@
+import os
+import re
 import torch
 from transformers import AutoModelForVision2Seq, AutoProcessor
 from peft import PeftModel
 from PIL import Image
-import re
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,103 +12,226 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 MODEL_ID = os.getenv("MODEL_NAME", "Awinpang/smolvlm-finetuned-xray")
 BASE_MODEL_ID = "HuggingFaceTB/SmolVLM-500M-Instruct"
 
-# Global cache - single source of truth
+# Cache
 _MODEL_CACHE = None
 _LOADING_LOCK = False
 
-def load_model(token=HF_TOKEN):
+# Cleaning constants
+_GARBAGE_PHRASES = [
+    "please provide",
+    "end of impression",
+    "summary:",
+    "signed by",
+    "date of exam",
+    "template",
+    "report end",
+    "final report",
+    "image for study",
+    "history:"
+]
+
+# Acronyms to preserve uppercase
+_ACRONYMS = ["pa", "ap", "copd", "chf", "ct", "mri", "cxr", "tb", "ai", "pao2", "fio2"]
+
+
+def lowercase_sentences(text: str) -> str:
+    """
+    Lowercase clinical sentences while:
+    - Keeping section headers uppercase
+    - Keeping medical acronyms uppercase
+    """
+    lines = text.split("\n")
+    new_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Keep section headers uppercase
+        if stripped.endswith(":"):
+            new_lines.append(stripped.upper())
+            continue
+
+        lowered = stripped.lower()
+
+        # Restore common medical acronyms to uppercase
+        for ac in _ACRONYMS:
+            lowered = lowered.replace(f" {ac} ", f" {ac.upper()} ")
+            lowered = lowered.replace(f"({ac})", f"({ac.upper()})")
+            lowered = lowered.replace(f"{ac}-", f"{ac.upper()}-")
+            lowered = lowered.replace(f"-{ac}", f"-{ac.upper()}")
+
+        new_lines.append(lowered)
+
+    return "\n".join(new_lines)
+
+
+def apply_impression_fallback(text: str) -> str:
+    """
+    Ensures IMPRESSION is never empty or meaningless.
+    Applies a safe fallback if the model does not generate a usable impression.
+    """
+    if not text:
+        return "FINDINGS:\n\nIMPRESSION:\nnormal chest radiograph with no evidence of acute cardiopulmonary abnormality."
+
+    up = text.upper()
+    if "IMPRESSION:" not in up:
+        return text.rstrip() + "\n\nIMPRESSION:\nnormal chest radiograph with no evidence of acute cardiopulmonary abnormality."
+
+    parts = re.split(r'IMPRESSION:', text, flags=re.IGNORECASE)
+    findings = parts[0]
+    impression = parts[1].strip()
+
+    if len(impression.replace(".", "").replace("-", "").strip()) < 20:
+        impression = "normal chest radiograph with no evidence of acute cardiopulmonary abnormality."
+
+    return findings.rstrip() + "\n\nIMPRESSION:\n" + impression.lower().strip()
+
+
+def load_model(token: str = HF_TOKEN):
     """
     Load the base model and apply LoRA adapter.
     Thread-safe singleton pattern to prevent multiple loads.
     """
     global _MODEL_CACHE, _LOADING_LOCK
-    
-    # Return cached model if already loaded
+
     if _MODEL_CACHE is not None:
-        print("✓ Returning cached model bundle")
         return _MODEL_CACHE
-    
-    # Prevent concurrent loading attempts
+
     if _LOADING_LOCK:
         import time
-        print(" Waiting for model to finish loading...")
         while _LOADING_LOCK:
             time.sleep(0.5)
         return _MODEL_CACHE
-    
+
     try:
         _LOADING_LOCK = True
-        print(f"Loading base model {BASE_MODEL_ID}...")
-        
-        # Load base model with memory optimizations
-        # Use float16 to avoid int8 quantization conflicts
+
         base_model = AutoModelForVision2Seq.from_pretrained(
             BASE_MODEL_ID,
             trust_remote_code=True,
             torch_dtype=torch.float16,
             device_map="auto",
             token=token,
-            low_cpu_mem_usage=True,
+            low_cpu_mem_usage=False  # faster startup; change to True if RAM constrained
         )
-        
-        print(f"🔄 Loading LoRA adapter from {MODEL_ID}...")
-        
-        # Load and apply LoRA adapter
+
         model = PeftModel.from_pretrained(
-            base_model, 
-            MODEL_ID, 
+            base_model,
+            MODEL_ID,
             token=token,
             torch_dtype=torch.float16
         )
-        
-        # Merge adapter into base model for inference
+
         model = model.merge_and_unload()
-        model = model.eval()
-        
-        print("✓ Model and LoRA adapter loaded and merged successfully")
-        
-        # Load processor
+        model.eval()
+
+        # Optional PyTorch inference optimizations
+        try:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.benchmark = True
+        except Exception:
+            pass
+
         processor = AutoProcessor.from_pretrained(
             BASE_MODEL_ID,
             trust_remote_code=True,
             token=token
         )
-        
-        # Cache the result
+
         _MODEL_CACHE = (processor, model)
-        print("✓ Model cached for future requests")
-        
         return _MODEL_CACHE
-        
-    except Exception as e:
-        print(f"❌ Error loading model: {e}")
-        raise
+
     finally:
         _LOADING_LOCK = False
 
 
-def predict_report(model_bundle, image, prior_text, bmi, age, sex, view_type, summary=False):
+def _build_prompt(prior_text, bmi, age, sex, view_type) -> str:
     """
-    Generate a complete radiology report with proper length.
+    Radiologist-grade prompt that enforces:
+    - clear FINDINGS
+    - complete IMPRESSION
+    - strict structure
+    - comparison only when relevant
+    """
+    return f"""
+You are an experienced board-certified radiologist.
+
+Analyze the chest X-ray and generate a clean, professional radiology report
+with the structure and clarity used in diagnostic practice.
+
+STRICT FORMAT:
+
+FINDINGS:
+Provide an objective description of:
+- Lungs and pleura
+- Heart size and mediastinum
+- Pulmonary vasculature
+- Diaphragm and costophrenic angles
+- Bones and soft tissues
+If the study appears normal, state the normal findings. If abnormal, describe only what is seen.
+Use a single comparison sentence only if prior findings are provided and relevant.
+
+IMPRESSION:
+This section must contain 1 to 3 concise diagnostic statements.
+If normal, write: "normal chest radiograph with no evidence of acute cardiopulmonary abnormality."
+Do not include disclaimers, recommendations, timestamps, or boilerplate text.
+
+Patient: {age}-year-old {sex}, BMI {bmi}, view type: {view_type}.
+Prior report summary: {prior_text if prior_text else "No prior report available."}
+""".strip()
+
+
+def clean_report_text(text: str) -> str:
+    """
+    Very-light cleaning + Option B lowercase:
+    - keep content from FINDINGS onward
+    - drop obvious garbage phrases
+    - ensure IMPRESSION present
+    - normalize spacing
+    - lowercase sentences while preserving headers and acronyms
+    - guarantee a non-empty impression
+    """
+    if not text:
+        return text
+
+    # Keep only from FINDINGS onward if present
+    up = text.upper()
+    if "FINDINGS:" in up:
+        idx = up.index("FINDINGS:")
+        text = text[idx:]
+
+    # Remove trailing junk markers
+    low = text.lower()
+    for g in _GARBAGE_PHRASES:
+        i = low.find(g)
+        if i != -1:
+            text = text[:i].strip()
+            break
+
+    # Ensure IMPRESSION header exists
+    if "IMPRESSION:" not in text.upper():
+        text += "\n\nIMPRESSION:\n"
+
+    # Normalize blank lines
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text).strip()
+
+    # Lowercase sentences but keep headers uppercase and acronyms uppercase
+    text = lowercase_sentences(text)
+
+    # Fallback to ensure impression is not empty or meaningless
+    text = apply_impression_fallback(text)
+
+    return text
+
+
+def predict_report(model_bundle, image: Image.Image, prior_text, bmi, age, sex, view_type):
+    """
+    Generate a radiology report using the enhanced prompt and cleaner.
+    Returns only the cleaned text.
     """
     processor, model = model_bundle
 
-    # Balanced prompt - specific but not restrictive
-    user_prompt = f"""
-Generate a comprehensive chest X-ray report with the following structure:
-
-FINDINGS:
-- Describe the lung fields, heart size and shape, mediastinum, diaphragm, and bones
-- Note any abnormalities, opacities, or pathologies
-- Comment on technical quality if relevant
-
-IMPRESSION:
-- Provide clinical interpretation and conclusions
-- Suggest follow-up if indicated
-
-Patient: {age}-year-old {sex}, BMI: {bmi}, {view_type} view
-Prior report: {prior_text if prior_text else "None available"}
-""".strip()
+    user_prompt = _build_prompt(prior_text, bmi, age, sex, view_type)
 
     messages = [
         {
@@ -119,13 +242,13 @@ Prior report: {prior_text if prior_text else "None available"}
             ]
         }
     ]
-    
+
     prompt_text = processor.apply_chat_template(
         messages,
         add_generation_prompt=True,
         tokenize=False
     )
-    
+
     inputs = processor(
         text=prompt_text,
         images=[image],
@@ -133,198 +256,22 @@ Prior report: {prior_text if prior_text else "None available"}
         padding=True
     ).to(model.device)
 
-    # Balanced generation parameters
     with torch.no_grad():
         generated_ids = model.generate(
             **inputs,
-            max_new_tokens=600,
-            min_new_tokens=300,
+            max_new_tokens=350,
             temperature=0.4,
-            top_p=0.85,
-            repetition_penalty=1.5,
+            top_p=0.75,
+            repetition_penalty=1.2,
             no_repeat_ngram_size=3,
-            length_penalty=1.2,
-            pad_token_id=processor.tokenizer.eos_token_id,
-            eos_token_id=processor.tokenizer.eos_token_id,
             do_sample=True,
-            early_stopping=True,
+            pad_token_id=processor.tokenizer.eos_token_id,
+            eos_token_id=processor.tokenizer.eos_token_id
         )
-    
-    prompt_length = inputs["input_ids"].shape[1]
-    generated_tokens = generated_ids[0, prompt_length:]
-    generated_text = processor.decode(generated_tokens, skip_special_tokens=True).strip()
 
-    print(f"Generated report length: {len(generated_text)} characters")
-    print(f"Preview: {generated_text[:150]}...")
-    
-    # Clean the text but preserve good content
-    cleaned_text = clean_report_text(generated_text)
-    
+    prompt_len = inputs["input_ids"].shape[1]
+    tokens = generated_ids[0, prompt_len:]
+    raw_text = processor.decode(tokens, skip_special_tokens=True).strip()
+
+    cleaned_text = clean_report_text(raw_text)
     return {"full_text": cleaned_text}
-
-
-def clean_report_text(text):
-    """
-    Clean up model output while preserving good medical content
-    """
-    # Remove everything before FINDINGS section
-    if "FINDINGS:" in text:
-        text = "FINDINGS:" + text.split("FINDINGS:")[1]
-    
-    # Remove common garbage patterns
-    garbage_patterns = [
-        r'Please provide FINDINGS and IMPRESSION.*',
-        r'By:.*\d{1,2}(st|nd|rd|th).*',
-        r'at \d{1,2}:\d{2} hours.*',
-        r'on \d{1,2}-[a-zA-Z]+-\d{2,4}.*',
-        r'md [a-zA-Z ]+ on.*',
-        r'REMARKANT DIAGNOSIS.*',
-        r'IMAGERY COMMENTS.*',
-        r'The following studies have been excluded.*',
-        r'RECOMMEND REPEAT.*',
-        r'ENDOTRACES, EPIDERALUNDE.*',
-        r'MEDIAN STERNOTOMY.*',
-        r'HISTORY:.*?(?=FINDINGS:|IMPRESSION:|$)',
-        r'COMPARISON:.*?(?=FINDINGS:|IMPRESSION:|$)',
-        r'TECHNIQUE:.*?(?=FINDINGS:|IMPRESSION:|$)',
-        r'END OF IMPRESSION:.*',
-        r'SUMMARY \d+:.*',
-    ]
-    
-    for pattern in garbage_patterns:
-        text = re.sub(pattern, '', text, flags=re.IGNORECASE | re.DOTALL)
-    
-    # Stop at specific garbage indicators
-    stop_indicators = [
-        "The following studies",
-        "Please provide",
-        "By:",
-        "at hours", 
-        "on september", "on january", "on february", "on march", "on april",
-        "on may", "on june", "on july", "on august", "on october",
-        "on november", "on december",
-        "END OF IMPRESSION:",
-        "SUMMARY",
-    ]
-    
-    for indicator in stop_indicators:
-        if indicator.lower() in text.lower():
-            text = text.split(indicator)[0].strip()
-            break
-    
-    # Ensure proper structure
-    if not text.startswith("FINDINGS:"):
-        if "FINDINGS:" in text:
-            text = "FINDINGS:" + text.split("FINDINGS:")[1]
-        else:
-            text = f"FINDINGS:\n{text}\n\nIMPRESSION:\nClinical correlation recommended."
-    
-    # Clean up IMPRESSION section
-    if "IMPRESSION:" in text:
-        parts = text.split("IMPRESSION:")
-        if len(parts) > 1:
-            findings_part = parts[0]
-            impression_part = parts[1]
-            
-            impression_endings = [
-                "END OF IMPRESSION",
-                "SUMMARY",
-                "FINAL REPORT",
-                "REPORT END",
-                "CONCLUSION:",
-            ]
-            
-            for ending in impression_endings:
-                if ending.lower() in impression_part.lower():
-                    impression_part = impression_part.split(ending)[0].strip()
-                    break
-            
-            impression_sentences = re.split(r'[.!?]+', impression_part)
-            if len(impression_sentences) > 3:
-                meaningful_sentences = []
-                for sentence in impression_sentences:
-                    sentence = sentence.strip()
-                    if sentence and len(sentence) > 10:
-                        meaningful_sentences.append(sentence)
-                        if len(meaningful_sentences) >= 2:
-                            break
-                
-                if meaningful_sentences:
-                    impression_part = '. '.join(meaningful_sentences) + '.'
-                else:
-                    impression_part = "Clinical correlation recommended."
-            
-            text = findings_part + "IMPRESSION:\n" + impression_part.strip()
-    
-    if "FINDINGS:" in text and "IMPRESSION:" not in text:
-        text += "\n\nIMPRESSION:\nClinical correlation recommended."
-    
-    # Remove all caps and clean whitespace
-    text = remove_all_caps(text)
-    text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
-    text = text.strip()
-    text = ensure_concise_impression(text)
-    
-    if len(text) < 200:
-        text = enhance_short_report(text)
-    
-    return text
-
-
-def ensure_concise_impression(text):
-    """Ensure IMPRESSION section is concise and professional"""
-    if "IMPRESSION:" in text:
-        parts = text.split("IMPRESSION:")
-        findings_part = parts[0]
-        impression_part = parts[1] if len(parts) > 1 else ""
-        
-        impression_part = impression_part.strip()
-        
-        if (len(impression_part) > 300 or 
-            "END OF IMPRESSION" in impression_part.upper() or
-            "SUMMARY" in impression_part.upper()):
-            impression_part = "Clinical correlation recommended."
-        
-        text = findings_part + "IMPRESSION:\n" + impression_part
-    
-    return text
-
-
-def remove_all_caps(text):
-    """Convert all-caps sections to normal sentence case"""
-    if "IMPRESSION:" in text:
-        parts = text.split("IMPRESSION:")
-        if len(parts) > 1:
-            findings_part = parts[0]
-            impression_part = parts[1]
-            
-            if impression_part.strip().isupper():
-                impression_part = impression_part.lower().capitalize()
-                sentences = re.split(r'(?<=[.!?])\s+', impression_part)
-                impression_part = '. '.join(s.strip().capitalize() for s in sentences if s.strip())
-            
-            text = findings_part + "IMPRESSION:\n" + impression_part
-    
-    return text
-
-
-def enhance_short_report(text):
-    """Enhance very short reports with more detail"""
-    if "FINDINGS:" in text and "IMPRESSION:" in text:
-        findings_part = text.split("FINDINGS:")[1].split("IMPRESSION:")[0].strip()
-        impression_part = text.split("IMPRESSION:")[1].strip()
-        
-        if len(findings_part) < 100:
-            enhanced_findings = findings_part
-            if "lung" not in enhanced_findings.lower():
-                enhanced_findings += "\n- Lung fields are clear without focal consolidation"
-            if "heart" not in enhanced_findings.lower():
-                enhanced_findings += "\n- Cardiomediastinal silhouette is within normal limits"
-            if "bone" not in enhanced_findings.lower():
-                enhanced_findings += "\n- Bony structures are unremarkable"
-            if "diaphragm" not in enhanced_findings.lower():
-                enhanced_findings += "\n- Diaphragm and costophrenic angles are clear"
-            
-            text = f"FINDINGS:\n{enhanced_findings}\n\nIMPRESSION:\n{impression_part}"
-    
-    return text

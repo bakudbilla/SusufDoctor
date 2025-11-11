@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Body
 from fastapi.responses import JSONResponse
 from google.cloud import firestore
+from collections import defaultdict
 
 from dependencies import verify_token, get_firestore
 
@@ -30,11 +31,10 @@ async def get_dashboard_patients(
                     "age": data.get("age"),
                     "sex": data.get("sex"),
                     "bmi": data.get("bmi"),
-                    "view_type": data.get("view_type", "Frontal"),  # Default to Frontal if missing
+                    "view_type": data.get("view_type", "Frontal"),
                     "latest_visit": data.get("created_at")
                 })
                 
-                # Stop after getting 5 unique patients
                 if len(patients) >= 5:
                     break
         
@@ -52,22 +52,40 @@ async def get_all_patients(
     current_user: dict = Depends(verify_token),
     db: firestore.Client = Depends(get_firestore)
 ):
-    """Get all patients for the radiologist"""
+    """Get all unique patients with accurate visit counts"""
     try:
         docs = db.collection("patients").stream()
-        patients = []
+        patients_dict = {}
         
+        # Group documents by patient_id and aggregate data
         for doc in docs:
             data = doc.to_dict()
-            patients.append({
-                "patient_id": data.get("patient_id"),
-                "patient_name": data.get("patient_name"),
-                "age": data.get("age"),
-                "sex": data.get("sex"),
-                "bmi": data.get("bmi"),
-                "latest_visit": data.get("created_at"),
-                "visit_count": 1
-            })
+            patient_id = data.get("patient_id")
+            
+            if not patient_id:
+                continue
+            
+            # Initialize patient if first visit
+            if patient_id not in patients_dict:
+                patients_dict[patient_id] = {
+                    "patient_id": patient_id,
+                    "patient_name": data.get("patient_name"),
+                    "age": data.get("age"),
+                    "sex": data.get("sex"),
+                    "bmi": data.get("bmi"),
+                    "latest_visit": data.get("created_at"),
+                    "visit_count": 0
+                }
+            
+            # Update latest_visit if this one is newer
+            current_visit = data.get("created_at")
+            if current_visit and current_visit > patients_dict[patient_id]["latest_visit"]:
+                patients_dict[patient_id]["latest_visit"] = current_visit
+            
+            # Increment visit count for each document (each document = 1 visit/scan)
+            patients_dict[patient_id]["visit_count"] += 1
+        
+        patients = list(patients_dict.values())
         
         return JSONResponse({
             "status": "success",
@@ -107,7 +125,7 @@ async def get_patient(
                 "visit_id": doc.id,
                 "date": data.get("created_at"),
                 "reason": f"{data.get('view_type')} chest X-ray",
-                "notes": data.get("report_text", "").split("\n")[0],
+                "notes": data.get("report_text", "").split("\n")[0] if data.get("report_text") else "",
                 "report_pdf": data.get("generated_report_url"),
                 "xray_url": data.get("xray_url")
             })
