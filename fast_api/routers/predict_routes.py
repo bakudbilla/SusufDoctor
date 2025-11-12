@@ -336,31 +336,39 @@ async def handle_new_report_mode(
     report_filename = f"generated_reports/{timestamp}_SuSufDoctor_Report.pdf"
     generated_report_url = upload_to_bucket(bucket, pdf_bytes, report_filename, "application/pdf")
 
-    # CHECK IF PATIENT ALREADY EXISTS
+    # IMPROVED: Check for existing patient by name and age (more reliable)
     existing_patient_doc = None
     try:
+        # Normalize patient name for comparison
+        normalized_name = patient_name.strip().lower()
+        
+        # Query all patients and filter in code for more flexibility
         query = db.collection("patients").where(
-            "patient_name", "==", patient_name
-        ).where(
-            "age", "==", age
-        ).where(
-            "sex", "==", sex
-        ).limit(1).stream()
+            "patient_id", "!=", None  # This ensures we get at least some results
+        ).limit(1000).stream()
         
         for doc in query:
-            existing_patient_doc = doc
-            break
+            data = doc.to_dict()
+            existing_name = (data.get("patient_name") or "").strip().lower()
+            existing_age = data.get("age")
+            
+            # Match by name AND age (age is more reliable than other fields that might vary)
+            if existing_name == normalized_name and existing_age == age:
+                existing_patient_doc = doc
+                print(f"Found existing patient by name and age: {data.get('patient_id')}")
+                break
     except Exception as e:
         print(f"Error checking for existing patient: {e}")
+        # Continue even if query fails - just create a new patient
     
     if existing_patient_doc:
         # Patient exists - use their existing patient_id and create a new visit document
         patient_id = existing_patient_doc.to_dict().get("patient_id")
-        print(f"Found existing patient: {patient_id}")
+        print(f"Reusing existing patient ID: {patient_id}")
         
         doc_ref = db.collection("patients").document()
         doc_ref.set({
-            "patient_id": patient_id,  # USE EXISTING PATIENT ID
+            "patient_id": patient_id,  # REUSE EXISTING PATIENT ID
             "patient_name": patient_name,
             "age": age,
             "sex": sex,
@@ -383,7 +391,7 @@ async def handle_new_report_mode(
         # New patient - create new document with new patient_id
         doc_ref = db.collection("patients").document()
         patient_id = doc_ref.id
-        print(f"Creating new patient: {patient_id}")
+        print(f"Creating NEW patient with ID: {patient_id}")
         
         doc_ref.set({
             "patient_id": patient_id,  # NEW PATIENT ID

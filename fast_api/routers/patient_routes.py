@@ -15,28 +15,40 @@ async def get_dashboard_patients(
     """Get first 5 unique patients for dashboard table"""
     try:
         docs = db.collection("patients").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
-        patients = []
-        seen_patients = set()
+        patients_dict = {}
         
         for doc in docs:
             data = doc.to_dict()
             patient_id = data.get("patient_id")
             
-            # Keep only the first (most recent) occurrence of each patient
-            if patient_id not in seen_patients:
-                seen_patients.add(patient_id)
-                patients.append({
+            if not patient_id:
+                continue
+            
+            # Initialize patient if first visit
+            if patient_id not in patients_dict:
+                patients_dict[patient_id] = {
                     "id": patient_id,
                     "name": data.get("patient_name", "N/A"),
                     "age": data.get("age"),
                     "sex": data.get("sex"),
                     "bmi": data.get("bmi"),
                     "view_type": data.get("view_type", "Frontal"),
-                    "latest_visit": data.get("created_at")
-                })
-                
-                if len(patients) >= 5:
-                    break
+                    "latest_visit": data.get("created_at"),
+                    "visit_count": 0
+                }
+            
+            # Update latest_visit if this one is newer
+            current_visit = data.get("created_at")
+            if current_visit and current_visit > patients_dict[patient_id]["latest_visit"]:
+                patients_dict[patient_id]["latest_visit"] = current_visit
+            
+            # Increment visit count
+            patients_dict[patient_id]["visit_count"] += 1
+            
+            if len(patients_dict) >= 5:
+                break
+        
+        patients = list(patients_dict.values())
         
         return JSONResponse({
             "status": "success",
@@ -44,6 +56,7 @@ async def get_dashboard_patients(
         })
     
     except Exception as e:
+        print(f"Dashboard error: {str(e)}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
@@ -79,13 +92,17 @@ async def get_all_patients(
             
             # Update latest_visit if this one is newer
             current_visit = data.get("created_at")
-            if current_visit and current_visit > patients_dict[patient_id]["latest_visit"]:
-                patients_dict[patient_id]["latest_visit"] = current_visit
+            if current_visit:
+                if not patients_dict[patient_id]["latest_visit"] or current_visit > patients_dict[patient_id]["latest_visit"]:
+                    patients_dict[patient_id]["latest_visit"] = current_visit
             
             # Increment visit count for each document (each document = 1 visit/scan)
             patients_dict[patient_id]["visit_count"] += 1
         
         patients = list(patients_dict.values())
+        
+        print(f"Retrieved {len(patients)} unique patients")
+        print(f"Patient data: {patients}")
         
         return JSONResponse({
             "status": "success",
@@ -93,6 +110,9 @@ async def get_all_patients(
         })
     
     except Exception as e:
+        print(f"Error fetching patients: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
@@ -136,12 +156,15 @@ async def get_patient(
         patient_info["visits"] = sorted(visits, key=lambda x: x["date"], reverse=True)
         patient_info["visit_count"] = len(visits)
         
+        print(f"Patient {patient_id} retrieved with {patient_info['visit_count']} visits")
+        
         return JSONResponse({
             "status": "success",
             "data": patient_info
         })
     
     except Exception as e:
+        print(f"Error fetching patient details: {str(e)}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
@@ -168,6 +191,8 @@ async def get_patient_visits(
                 "radiologist": data.get("radiologist_name")
             })
         
+        print(f"Patient {patient_id} has {len(visits)} visits")
+        
         return JSONResponse({
             "status": "success",
             "data": {
@@ -178,6 +203,7 @@ async def get_patient_visits(
         })
     
     except Exception as e:
+        print(f"Error fetching patient visits: {str(e)}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
@@ -201,4 +227,5 @@ async def update_report(
         })
     
     except Exception as e:
+        print(f"Error updating report: {str(e)}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
