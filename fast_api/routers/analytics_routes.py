@@ -7,7 +7,6 @@ import os
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
-# ✅ Shared stopwords for both endpoints
 CUSTOM_STOPS = {
     "the", "left", "is", "are", "was", "were", "and", "to", "of", "no",
     "normal", "noted", "there", "mild", "seen", "on", "with",
