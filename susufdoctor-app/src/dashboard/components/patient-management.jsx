@@ -40,9 +40,17 @@ export default function PatientRevisitSystem() {
       });
 
       const data = await response.json();
+      console.log('API Response - All Patients:', data);
       
       if (data.status === 'success') {
-        setPatients(data.data);
+        // Ensure visit_count is properly set for each patient
+        const processedPatients = (data.data || []).map(patient => ({
+          ...patient,
+          visit_count: patient.visit_count || 0
+        }));
+        
+        console.log('Processed patients with visit counts:', processedPatients);
+        setPatients(processedPatients);
       } else {
         setError('Failed to fetch patients');
       }
@@ -66,7 +74,8 @@ export default function PatientRevisitSystem() {
       });
 
       const data = await response.json();
-      console.log(data)
+      console.log('Patient Details Response:', data);
+      
       if (data.status === 'success') {
         setSelectedPatient(data.data);
       } else {
@@ -154,7 +163,9 @@ export default function PatientRevisitSystem() {
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-lg">{patient.patient_name}</h3>
                       <Badge variant="outline">{patient.patient_id}</Badge>
-                      <Badge className="bg-green-100 text-green-800">{patient.visit_count || 0} visits</Badge>
+                      <Badge className="bg-green-100 text-green-800">
+                        {patient.visit_count || 0} {patient.visit_count === 1 ? 'visit' : 'visits'}
+                      </Badge>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
@@ -198,7 +209,7 @@ export default function PatientRevisitSystem() {
                               {selectedPatient.patient_name}
                             </DialogTitle>
                             <DialogDescription>
-                              Patient ID: {selectedPatient.patient_id} • {selectedPatient.visit_count} total visits
+                              Patient ID: {selectedPatient.patient_id} • {selectedPatient.visit_count} total {selectedPatient.visit_count === 1 ? 'visit' : 'visits'}
                             </DialogDescription>
                           </DialogHeader>
 
