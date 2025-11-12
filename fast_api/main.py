@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 from dependencies import initialize_gcloud
-from routers import auth_routes, predict_routes, patient_routes
+from routers import auth_routes, predict_routes, patient_routes,analytics_routes
+
 
 # Load environment variables first
 load_dotenv()
@@ -81,6 +82,7 @@ async def startup_event():
 app.include_router(auth_routes.router, tags=["Authentication"])
 app.include_router(predict_routes.router, tags=["Predictions"])
 app.include_router(patient_routes.router, tags=["Patients"])
+app.include_router(analytics_routes.router, tags=["Analytics"])  
 
 
 if __name__ == "__main__":
