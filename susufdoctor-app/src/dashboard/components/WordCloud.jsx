@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from "react";
-import "./WordCloud.css";
+import { useEffect, useState } from "react";
 import { API_URL } from "../../utils/constant";
 
 export default function WordCloud({ refreshTrigger }) {
   const [imgUrl, setImgUrl] = useState("");
 
   useEffect(() => {
-    // Always fetch a fresh word cloud image
     const url = `${API_URL}analytics/wordcloud?t=${Date.now()}`;
     setImgUrl(url);
   }, [refreshTrigger]);

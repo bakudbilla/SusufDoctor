@@ -191,25 +191,25 @@
 }
 
 * {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 
 /* Blue glow animation */
 
 @keyframes pulse-glow {
-    0%,
-    100% {
-        box-shadow: 0 0 25px rgba(37, 99, 235, 0.25), 0 0 50px rgba(37, 99, 235, 0.15);
-    }
-    50% {
-        box-shadow: 0 0 40px rgba(37, 99, 235, 0.4), 0 0 70px rgba(37, 99, 235, 0.25);
-    }
+  0%,
+  100% {
+      box-shadow: 0 0 25px rgba(37, 99, 235, 0.25), 0 0 50px rgba(37, 99, 235, 0.15);
+  }
+  50% {
+      box-shadow: 0 0 40px rgba(37, 99, 235, 0.4), 0 0 70px rgba(37, 99, 235, 0.25);
+  }
 }
 
 .animate-glow {
-    animation: pulse-glow 4s ease-in-out infinite;
+  animation: pulse-glow 4s ease-in-out infinite;
 }
 
 .input {
@@ -233,115 +233,160 @@
 }
 
 
-    @keyframes slideInLeft {
-      from {
-        opacity: 0;
-        transform: translateX(-40px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes slideToggle {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.animate-slide-in-left {
+  animation: slideInLeft 0.6s ease-out;
+}
+.animate-slide-in-right {
+  animation: slideInRight 0.6s ease-out;
+}
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+.form-input-group {
+  animation: fadeInUp 0.6s ease-out backwards;
+}
+.form-input-group:nth-child(1) { animation-delay: 0.1s; }
+.form-input-group:nth-child(2) { animation-delay: 0.2s; }
+.form-input-group:nth-child(3) { animation-delay: 0.3s; }
+.form-input-group:nth-child(4) { animation-delay: 0.4s; }
+.form-input-group:nth-child(5) { animation-delay: 0.5s; }
+.form-input-group:nth-child(6) { animation-delay: 0.6s; }
+.toggle-switch {
+  position: relative;
+  width: 60px;
+  height: 32px;
+  background-color: #e0e0e0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background-color 0.4s ease;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.toggle-switch.active {
+  background-color: #0088FF;
+}
+.toggle-circle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  background-color: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.toggle-switch.active .toggle-circle {
+  left: 30px;
+}
 
-    @keyframes slideInRight {
-      from {
-        opacity: 0;
-        transform: translateX(40px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
 
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
 
-    @keyframes float {
-      0%, 100% {
-        transform: translateY(0px);
-      }
-      50% {
-        transform: translateY(-10px);
-      }
-    }
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.scroll-top-btn {
+  animation: slideUp 0.3s ease-out;
+}
+.icon-bounce {
+  display: inline-block;
+  animation: bounce 1s ease-in-out infinite;
+}
 
-    @keyframes slideToggle {
-      from {
-        transform: translateX(0);
-      }
-      to {
-        transform: translateX(100%);
-      }
-    }
 
-    .animate-slide-in-left {
-      animation: slideInLeft 0.6s ease-out;
-    }
+/******************* WORD CLOUD ******************/
+.fade-in {
+  animation: fadeInContainer 0.8s ease;
+}
 
-    .animate-slide-in-right {
-      animation: slideInRight 0.6s ease-out;
-    }
+.wordcloud-img {
+  opacity: 0;
+  animation: fadeInImage 1.2s ease forwards;
+}
 
-    .animate-fade-in-up {
-      animation: fadeInUp 0.6s ease-out;
-    }
+@keyframes fadeInContainer {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
-    .animate-float {
-      animation: float 3s ease-in-out infinite;
-    }
-
-    .form-input-group {
-      animation: fadeInUp 0.6s ease-out backwards;
-    }
-
-    .form-input-group:nth-child(1) { animation-delay: 0.1s; }
-    .form-input-group:nth-child(2) { animation-delay: 0.2s; }
-    .form-input-group:nth-child(3) { animation-delay: 0.3s; }
-    .form-input-group:nth-child(4) { animation-delay: 0.4s; }
-    .form-input-group:nth-child(5) { animation-delay: 0.5s; }
-    .form-input-group:nth-child(6) { animation-delay: 0.6s; }
-
-    .toggle-switch {
-      position: relative;
-      width: 60px;
-      height: 32px;
-      background-color: #e0e0e0;
-      border-radius: 16px;
-      cursor: pointer;
-      transition: background-color 0.4s ease;
-      border: none;
-      padding: 0;
-      display: flex;
-      align-items: center;
-      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-
-    .toggle-switch.active {
-      background-color: #0088FF;
-    }
-
-    .toggle-circle {
-      position: absolute;
-      width: 28px;
-      height: 28px;
-      background-color: white;
-      border-radius: 50%;
-      top: 2px;
-      left: 2px;
-      transition: left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
-
-    .toggle-switch.active .toggle-circle {
-      left: 30px;
-    }
+@keyframes fadeInImage {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

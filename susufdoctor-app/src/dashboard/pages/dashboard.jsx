@@ -3,10 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Activity, CheckCircle, LogOut, Loader } from "lucide-react";
 import PatientsPerMonthChart from "../components/PatientChart";
 import FiltersQuickAction from "../components/FiltersQuickAction";
-import { API_URL } from "../../utils/constant";
+import { API_URL } from '../../utils/constant';
+import { useNavigate } from 'react-router-dom';
+import AgeDistributionHistogram from '../components/AgeHistogram';
 import WordCloud from "../components/WordCloud";  
 
-export function Dashboard({ onNavigate }) {
+
+export function Dashboard() {
   const [radiologistName, setRadiologistName] = useState("Dr. Unknown");
   const [stats, setStats] = useState({
     totalScans: 0,
@@ -14,6 +17,7 @@ export function Dashboard({ onNavigate }) {
   });
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const navigate = useNavigate('');
 
   // Trigger for Word Cloud auto-refresh
   const [refreshWordCloud, setRefreshWordCloud] = useState(0);
@@ -50,7 +54,7 @@ export function Dashboard({ onNavigate }) {
           localStorage.setItem("radiologist_name", fullName);
         }
       } catch (e) {
-        console.log("Auth/me endpoint not available, using localStorage");
+        console.error("Auth/me endpoint not available, using localStorage",e);
       }
 
       const patientsResponse = await fetch(`${API_URL}patients`, {
@@ -76,7 +80,6 @@ export function Dashboard({ onNavigate }) {
           completedToday,
         });
 
-        // Every time patient data changes (new report), refresh Word Cloud
         setRefreshWordCloud((prev) => prev + 1);
       }
     } catch (error) {
@@ -105,12 +108,13 @@ export function Dashboard({ onNavigate }) {
 
       localStorage.removeItem("access_token");
       localStorage.removeItem("radiologist_name");
-      window.location.href = "/signup";
+      navigate("/signup")
+      
     } catch (error) {
       console.error("Error logging out:", error);
       localStorage.removeItem("access_token");
       localStorage.removeItem("radiologist_name");
-      window.location.href = "/signup";
+      navigate("/signup")
     } finally {
       setLoggingOut(false);
     }
@@ -187,11 +191,22 @@ export function Dashboard({ onNavigate }) {
         })}
       </div>
 
-      <PatientsPerMonthChart />
-      <FiltersQuickAction onNavigate={onNavigate} />
 
-      {/* Word Cloud Section */}
+      {/* Chart Section */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="md:w-1/2 w-full">
+          <PatientsPerMonthChart />
+        </div>
+        <div className="md:w-1/2 w-full">
+          <AgeDistributionHistogram />
+        </div>
+      </div>
+
+
+
+      <FiltersQuickAction />
       <WordCloud refreshTrigger={refreshWordCloud} />
+
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Filter, Upload, User, Loader } from "lucide-react";
 import { API_URL } from '../../utils/constant'
+import PatientGenderDistribution from './GenderChart';
 
 const filterOptions = ["All", "Frontal", "Lateral"];
 const sortOptions = [
@@ -13,7 +14,7 @@ const quickActions = [
   { label: "Patient Management", icon: User, id: 'patients' },
 ];
 
-export default function FiltersQuickAction({ onNavigate }) {
+export default function FiltersQuickAction() {
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [openFilter, setOpenFilter] = useState(false);
@@ -71,8 +72,7 @@ export default function FiltersQuickAction({ onNavigate }) {
 
   return (
     <div className="flex flex-col md:flex-row gap-3 w-full">
-
-      <div className="w-full md:w-[70%] bg-white rounded-xl shadow p-4">
+      <div className="w-full md:w-[60%] bg-white rounded-xl shadow p-4">
         <div className="flex justify-between items-center mb-3 relative">
           <h2 className="font-semibold text-lg">Patients</h2>
 
@@ -144,11 +144,11 @@ export default function FiltersQuickAction({ onNavigate }) {
             <tbody>
               {filteredPatients.map((patient, i) => (
                 <tr key={i} className="border-b last:border-none hover:bg-gray-50">
-                  <td className="py-3 px-2 font-medium">
-                    {patient.name || "N/A"}
-                  </td>
+                  <td className="py-3 px-2 font-medium">{patient.name || "N/A"}</td>
                   <td className="py-3 px-2 font-semibold">{patient.age || "N/A"}</td>
-                  <td className="py-3 px-2 font-semibold">{patient.bmi ? patient.bmi.toFixed(2) : "N/A"}</td>
+                  <td className="py-3 px-2 font-semibold">
+                    {patient.bmi ? patient.bmi.toFixed(2) : "N/A"}
+                  </td>
                   <td className="py-3 px-2">{patient.view_type || "N/A"}</td>
                 </tr>
               ))}
@@ -157,21 +157,9 @@ export default function FiltersQuickAction({ onNavigate }) {
         )}
       </div>
 
-      <div className="w-full md:w-[30%] bg-white rounded-xl shadow p-6">
-        <h2 className="font-semibold text-lg mb-4">Quick Actions</h2>
-        <ul className="space-y-4 text-gray-700">
-          {quickActions.map(({ label, icon: Icon, id }) => (
-            <li 
-              key={label} 
-              onClick={() => onNavigate && onNavigate(id)}
-              className="flex items-center gap-3 cursor-pointer hover:text-blue-600 transition"
-            >
-              <Icon size={18} /> {label}
-            </li>
-          ))}
-        </ul>
+      <div className="w-full md:w-[40%]">
+        <PatientGenderDistribution />
       </div>
-
     </div>
   );
 }
