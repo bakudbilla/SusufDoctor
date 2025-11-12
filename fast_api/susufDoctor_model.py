@@ -170,6 +170,7 @@ def load_model(token: str = HF_TOKEN):
 def _build_prompt(prior_text, bmi, age, sex, view_type) -> str:
     """
     Radiologist-grade prompt that enforces structure.
+    Requires prior text for longitudinal analysis.
     """
     # Clean prior text
     if prior_text:
@@ -182,13 +183,13 @@ def _build_prompt(prior_text, bmi, age, sex, view_type) -> str:
 Follow this exact structure:
 
 FINDINGS:
-Describe the lung fields, heart size, mediastinum, diaphragm, bones, and any support devices.
+Describe the lung fields, heart size, mediastinum, diaphragm, bones, and any support devices. Note any interval changes compared to the prior study.
 
 IMPRESSION:
 Provide 1-3 concise diagnostic statements.
 
 Patient: {age}-year-old {sex}, BMI: {bmi}, View: {view_type}
-Prior: {prior_text}""".strip()
+Prior Study: {prior_text}""".strip()
 
 def clean_report_text(text: str) -> str:
     """
@@ -238,13 +239,15 @@ def clean_report_text(text: str) -> str:
 
 def predict_report(model_bundle, image: Image.Image, prior_text, bmi, age, sex, view_type):
     """
-    Generate a radiology report using the enhanced prompt and cleaner.
+    Generate a radiology report using prior report + metadata + current image.
+    This is for longitudinal analysis only.
     """
     try:
         processor, model = model_bundle
 
         user_prompt = _build_prompt(prior_text, bmi, age, sex, view_type)
-        print(f"Prompt length: {len(user_prompt)}")
+        print(f"Longitudinal analysis prompt length: {len(user_prompt)}")
+        print(f"Prior text used: {prior_text[:200]}...")
 
         messages = [
             {
@@ -269,19 +272,18 @@ def predict_report(model_bundle, image: Image.Image, prior_text, bmi, age, sex, 
             padding=True
         ).to(model.device)
 
-        print("Generating report...")
+        print("Generating longitudinal report...")
         with torch.no_grad():
             generated_ids = model.generate(
                 **inputs,
                 max_new_tokens=400,
-                temperature=0.3,  # Lower for more consistent output
+                temperature=0.3,  
                 top_p=0.8,
                 repetition_penalty=1.2,
                 no_repeat_ngram_size=3,
                 do_sample=True,
                 pad_token_id=processor.tokenizer.eos_token_id,
-                eos_token_id=processor.tokenizer.eos_token_id,
-                early_stopping=True
+                eos_token_id=processor.tokenizer.eos_token_id
             )
 
         # Extract only the new tokens (excluding prompt)
@@ -293,7 +295,7 @@ def predict_report(model_bundle, image: Image.Image, prior_text, bmi, age, sex, 
         
         cleaned_text = clean_report_text(raw_text)
         
-        print(f" Final report: {len(cleaned_text)} characters")
+        print(f"Final longitudinal report: {len(cleaned_text)} characters")
         return {"full_text": cleaned_text}
         
     except Exception as e:

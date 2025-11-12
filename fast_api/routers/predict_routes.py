@@ -71,9 +71,9 @@ def normalize_view_type(view_type: str) -> str:
 
 def create_proper_pdf(report_text: str, patient_info: dict, is_edited: bool = False) -> bytes:
     """
-    Create properly formatted PDF with:
-    - Uppercase section headers
-    - Lowercased clinical text (consistent with model output)
+    Create properly formatted PDF with proper medical report structure:
+    - Uppercase section headers (FINDINGS, IMPRESSION)
+    - Properly cased clinical text (respects the model's output formatting)
     """
     buffer = io.BytesIO()
 
@@ -92,12 +92,14 @@ def create_proper_pdf(report_text: str, patient_info: dict, is_edited: bool = Fa
 
     story = []
 
+    # Title
     title = "SuSufDoctor Radiology Report"
     if is_edited:
         title += " (Edited)"
     story.append(Paragraph(title, title_style))
     story.append(Spacer(1, 20))
 
+    # Patient Information
     patient_info_text = f"""
     <b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br/>
     <b>Patient:</b> {patient_info['patient_name']}<br/>
@@ -116,23 +118,27 @@ def create_proper_pdf(report_text: str, patient_info: dict, is_edited: bool = Fa
     story.append(Paragraph("<hr/>", normal_style))
     story.append(Spacer(1, 20))
 
-    # Consistent PDF layout for lowercase clinical text
-    paragraphs = report_text.split("\n\n")
-
-    for paragraph in paragraphs:
-        if not paragraph.strip():
+    # Process report text with proper formatting
+    lines = report_text.split('\n')
+    
+    for line in lines:
+        if not line.strip():
+            story.append(Spacer(1, 8))
             continue
-
-        p = paragraph.strip()
-
-        # Keep section headers uppercase and bold
-        if p.endswith(":"):
-            story.append(Paragraph(f"<b>{p.upper()}</b>", header_style))
+            
+        stripped = line.strip()
+        
+        # Handle section headers (uppercase and bold)
+        if stripped.upper() in ['FINDINGS:', 'IMPRESSION:', 'TECHNIQUE:', 'COMPARISON:', 'CLINICAL HISTORY:']:
+            story.append(Paragraph(f"<b>{stripped.upper()}</b>", header_style))
+            story.append(Spacer(1, 10))
+        elif stripped.endswith(':'):
+            story.append(Paragraph(f"<b>{stripped.upper()}</b>", header_style))
             story.append(Spacer(1, 10))
         else:
-            # Lowercase text in PDF body for consistency
-            story.append(Paragraph(p.lower(), normal_style))
-            story.append(Spacer(1, 8))
+            # Keep clinical text as-is (respects the model's formatting)
+            story.append(Paragraph(stripped, normal_style))
+            story.append(Spacer(1, 6))
 
     if is_edited:
         story.append(Spacer(1, 20))
@@ -304,14 +310,15 @@ async def handle_new_report_mode(
 
     model_bundle = get_model()
 
+    # Use the unified predict_report function that handles both modes
     result = predict_report(
         model_bundle,
         image,
-        prior_text,
-        bmi,
-        age,
-        sex,
-        view_type
+        prior_text=prior_text,
+        bmi=bmi,
+        age=age,
+        sex=sex,
+        view_type=view_type
     )
     report_text = result["full_text"]
 
@@ -385,7 +392,9 @@ async def handle_new_report_mode(
             "report_text": report_text,
             "status": "completed",
             "is_edited": False,
-            "original_report_url": generated_report_url
+            "original_report_url": generated_report_url,
+            "analysis_mode": result.get("mode", "baseline"),
+            "has_prior_study": bool(prior_text)
         })
     else:
         # New patient - create new document with new patient_id
@@ -411,7 +420,9 @@ async def handle_new_report_mode(
             "report_text": report_text,
             "status": "completed",
             "is_edited": False,
-            "original_report_url": generated_report_url
+            "original_report_url": generated_report_url,
+            "analysis_mode": result.get("mode", "baseline"),
+            "has_prior_study": bool(prior_text)
         })
 
     return JSONResponse({
@@ -426,7 +437,9 @@ async def handle_new_report_mode(
             "normalized_view_type": view_type,
             "original_view_type": original_view_type,
             "report_text": report_text,
-            "is_edit": False
+            "is_edit": False,
+            "analysis_mode": result.get("mode", "baseline"),
+            "has_prior_study": bool(prior_text)
         }
     })
 
