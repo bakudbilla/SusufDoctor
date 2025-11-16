@@ -7,7 +7,7 @@ import { API_URL } from "../../../utils/constant";
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
-  { id: 'upload', label: 'Upload Images', icon: Upload },
+  { id: 'upload', label: 'Generate Report', icon: Upload },
   { id: 'patients', label: 'Patient Management', icon: Users },
 ];
 
@@ -25,7 +25,6 @@ export function Navigation({ currentPage, onNavigate }) {
       const token = localStorage.getItem("access_token");
       const storedName = localStorage.getItem("radiologist_name");
 
-      // Try to get from API first
       try {
         const response = await fetch(`${API_URL}auth/profile`, {
           headers: {
@@ -41,7 +40,6 @@ export function Navigation({ currentPage, onNavigate }) {
           setRadiologistName(fullName);
           localStorage.setItem("radiologist_name", fullName);
           
-          // Set profile picture if available
           if (user.profile_picture_url) {
             setProfilePicture(user.profile_picture_url);
           }
@@ -51,7 +49,6 @@ export function Navigation({ currentPage, onNavigate }) {
         console.log("Auth/profile endpoint not available, using localStorage");
       }
 
-      // Fallback to localStorage
       if (storedName) {
         setRadiologistName(storedName);
       }

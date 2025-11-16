@@ -22,7 +22,7 @@ export default function PatientRevisitSystem() {
 
   const itemsPerPage = 10;
 
-  // Fetch all patients on component mount
+  // Fetch all patients on component 
   useEffect(() => {
     fetchPatients();
   }, []);
@@ -43,7 +43,7 @@ export default function PatientRevisitSystem() {
       console.log('API Response - All Patients:', data);
       
       if (data.status === 'success') {
-        // Ensure visit_count is properly set for each patient
+      
         const processedPatients = (data.data || []).map(patient => ({
           ...patient,
           visit_count: patient.visit_count || 0

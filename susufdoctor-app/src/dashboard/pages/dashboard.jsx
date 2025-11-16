@@ -152,7 +152,7 @@ export function Dashboard() {
             Welcome back, {radiologistName}
           </h1>
           <p className="text-muted-foreground text-sm md:text-base">
-            Here's what's happening with your radiology practice today.
+            Generate Chest X-ray Report and analyze patient data.
           </p>
         </div>
         <button
