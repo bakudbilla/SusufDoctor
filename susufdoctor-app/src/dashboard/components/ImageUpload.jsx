@@ -18,6 +18,9 @@ export default function ImageUpload() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [uploadedReport, setUploadedReport] = useState(null);
+
   // Save mode to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem("uploadPageMode", mode);
@@ -54,6 +57,8 @@ export default function ImageUpload() {
     setMode("select");
     setSelectedPatient(null);
     setFormData(null);
+    setUploadedImage(null);
+    setUploadedReport(null);
     localStorage.removeItem("selectedPatient");
     localStorage.removeItem("patientFormData");
     localStorage.removeItem("uploadPageMode");
@@ -61,6 +66,32 @@ export default function ImageUpload() {
 
   const handleFormDataChange = (data) => {
     setFormData(data);
+  };
+
+  const handleImageUpload = (file) => {
+    if (file && file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedImage({
+          file,
+          preview: e.target.result
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleReportUpload = (file) => {
+    if (file && file.type === "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedReport({
+          file,
+          preview: e.target.result
+        });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   if (mode === "select" || mode === "search") {
@@ -79,6 +110,10 @@ export default function ImageUpload() {
       selectedPatient={selectedPatient}
       onBack={handleBack}
       onFormDataChange={handleFormDataChange}
+      onImageUpload={handleImageUpload}
+      onReportUpload={handleReportUpload}
+      uploadedImage={uploadedImage}
+      uploadedReport={uploadedReport}
       initialFormData={
         formData || (selectedPatient
           ? {

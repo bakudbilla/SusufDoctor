@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Upload, X, FileImage, CheckCircle2, AlertCircle, File, Download, Edit2, Save, Eye, Loader2 } from "lucide-react";
 import { API_URL } from '../../utils/constant'
 
-export default function PatientForm({ mode, selectedPatient, onBack, initialFormData = null, onFormDataChange }) {
+export default function PatientForm({ mode, selectedPatient, onBack, initialFormData = null, onFormDataChange, onImageUpload, onReportUpload, uploadedImage, uploadedReport }) {
   const [formData, setFormData] = useState(
     initialFormData || {
       patientName: "",
@@ -123,6 +123,12 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       type: file.type,
       file,
     });
+    
+    // Call parent's onImageUpload handler
+    if (onImageUpload) {
+      onImageUpload(file);
+    }
+    
     setErrors((prev) => ({ ...prev, xrayFile: "" }));
   };
 
@@ -144,6 +150,12 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       file,
       isPrior: false,
     });
+    
+    // Call parent's onReportUpload handler
+    if (onReportUpload) {
+      onReportUpload(file);
+    }
+    
     setErrors((prev) => ({ ...prev, reportFile: "" }));
   };
 
@@ -507,6 +519,17 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                 onChange={(e) => e.target.files && handleXrayFiles(e.target.files)}
               />
             </div>
+
+            {uploadedImage && (
+              <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
+                <p className="text-sm font-medium text-slate-700 mb-3">Image Preview</p>
+                <img
+                  src={uploadedImage.preview}
+                  alt="X-ray preview"
+                  className="max-h-64 rounded-lg mx-auto"
+                />
+              </div>
+            )}
           </div>
 
           {reportGenerated && (
@@ -650,6 +673,19 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
                   accept="application/pdf"
                   onChange={(e) => e.target.files && handleReportFiles(e.target.files)}
                 />
+              </div>
+            )}
+
+            {uploadedReport && (
+              <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
+                <p className="text-sm font-medium text-slate-700 mb-3">Report Preview</p>
+                <div className="bg-white rounded-lg p-4 max-h-64 overflow-auto border border-slate-200">
+                  <iframe
+                    src={uploadedReport.preview}
+                    className="w-full h-64 rounded"
+                    title="PDF preview"
+                  />
+                </div>
               </div>
             )}
           </div>
