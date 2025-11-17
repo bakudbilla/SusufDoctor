@@ -29,6 +29,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
   const [isSaving, setIsSaving] = useState(false);
   const [reportText, setReportText] = useState("");
   const [originalReportText, setOriginalReportText] = useState("");
+  const [liveStage, setLiveStage] = useState(null);
 
   const xrayFileInputRef = useRef(null);
   const reportFileInputRef = useRef(null);
@@ -171,75 +172,179 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleGenerateReport = async () => {
-    if (!validateForm()) return;
-    setIsGenerating(true);
-    setApiError(null);
-    setSubmitStatus(null);
+//   const handleGenerateReport = async () => {
+//     if (!validateForm()) return;
+//     setIsGenerating(true);
+//     setApiError(null);
+//     setSubmitStatus(null);
 
+//     try {
+//       const formDataToSend = new FormData();
+//       formDataToSend.append("xray_image", xrayFile.file);
+      
+//       if (reportFile && reportFile.file && !reportFile.isPrior) {
+//         formDataToSend.append("prior_report", reportFile.file);
+//       }
+      
+//       formDataToSend.append("bmi", formData.bmi);
+//       formDataToSend.append("age", formData.age);
+//       formDataToSend.append("sex", formData.sex);
+//       formDataToSend.append("view_type", formData.xrayView);
+//       formDataToSend.append("patient_name", formData.patientName);
+
+//       const token = localStorage.getItem("access_token");
+//       if (!token) throw new Error("Please login to generate reports");
+
+//       const response = await fetch(`${API_URL}predict/`, {
+//         method: "POST",
+//         headers: { Authorization: `Bearer ${token}` },
+//         body: formDataToSend,
+//       });
+
+//       if (!response.ok) {
+//         const text = await response.text();
+//         console.error("Raw error:", text);
+//         let message = "Unknown API error";
+//         try {
+//           const data = JSON.parse(text);
+//           message =
+//             data.detail?.[0]?.msg ||
+//             data.message ||
+//             JSON.stringify(data.detail || data);
+//         } catch {
+//           message = text;
+//         }
+//         throw new Error(message);
+//       }
+
+//       const result = await response.json();
+//       const pdfUrl = result.data?.generated_report_url;
+//       if (!pdfUrl) throw new Error("No PDF URL found in API response");
+
+//       setPdfUrl(pdfUrl);
+//       setFirestoreId(result.data?.patient_id);
+//       setReportText(result.data?.report_text || "");
+//       setOriginalReportText(result.data?.report_text || "");
+//       setReportGenerated(true);
+//       setSubmitStatus({
+//         type: "success",
+//         message: "Report generated successfully! You can now view, edit, or download the PDF.",
+//       });
+//     } catch (error) {
+//       console.error("Error generating report:", error);
+//       setApiError(error.message);
+//       setSubmitStatus({
+//         type: "error",
+//         message: `Failed to generate report: ${error.message}`,
+//       });
+//     } finally {
+//       setIsGenerating(false);
+//     }
+//   };
+const handleGenerateReportWS = async () => {
+  if (!validateForm()) return;
+
+  setIsGenerating(true);
+  setReportGenerated(false);
+  setReportText("");
+  setOriginalReportText("");
+  setLiveStage("Connecting…");
+
+  const ws = new WebSocket("ws://localhost:8000/predict/ws");
+  ws.binaryType = "arraybuffer";
+
+  ws.onopen = async () => {
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append("xray_image", xrayFile.file);
-      
+      setLiveStage("Uploading X-ray…");
+
+      const arrayBuffer = await xrayFile.file.arrayBuffer();
+      const xrayHex = Array.from(new Uint8Array(arrayBuffer))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      let priorHex = null;
       if (reportFile && reportFile.file && !reportFile.isPrior) {
-        formDataToSend.append("prior_report", reportFile.file);
-      }
-      
-      formDataToSend.append("bmi", formData.bmi);
-      formDataToSend.append("age", formData.age);
-      formDataToSend.append("sex", formData.sex);
-      formDataToSend.append("view_type", formData.xrayView);
-      formDataToSend.append("patient_name", formData.patientName);
-
-      const token = localStorage.getItem("access_token");
-      if (!token) throw new Error("Please login to generate reports");
-
-      const response = await fetch(`${API_URL}predict/`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formDataToSend,
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        console.error("Raw error:", text);
-        let message = "Unknown API error";
-        try {
-          const data = JSON.parse(text);
-          message =
-            data.detail?.[0]?.msg ||
-            data.message ||
-            JSON.stringify(data.detail || data);
-        } catch {
-          message = text;
-        }
-        throw new Error(message);
+        const pdfBuffer = await reportFile.file.arrayBuffer();
+        priorHex = Array.from(new Uint8Array(pdfBuffer))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
       }
 
-      const result = await response.json();
-      const pdfUrl = result.data?.generated_report_url;
-      if (!pdfUrl) throw new Error("No PDF URL found in API response");
-
-      setPdfUrl(pdfUrl);
-      setFirestoreId(result.data?.patient_id);
-      setReportText(result.data?.report_text || "");
-      setOriginalReportText(result.data?.report_text || "");
-      setReportGenerated(true);
-      setSubmitStatus({
-        type: "success",
-        message: "Report generated successfully! You can now view, edit, or download the PDF.",
-      });
-    } catch (error) {
-      console.error("Error generating report:", error);
-      setApiError(error.message);
-      setSubmitStatus({
-        type: "error",
-        message: `Failed to generate report: ${error.message}`,
-      });
-    } finally {
+      ws.send(
+        JSON.stringify({
+          xray_hex: xrayHex,
+          prior_hex: priorHex,
+          patient_info: {
+            bmi: formData.bmi,
+            age: formData.age,
+            sex: formData.sex,
+            view_type: formData.xrayView,
+            patient_name: formData.patientName
+          }
+        })
+      );
+    } catch (err) {
+      console.error("WS send error", err);
       setIsGenerating(false);
+      setLiveStage(null);
+      ws.close();
     }
   };
+
+  let accumulated = "";
+
+  ws.onmessage = async (event) => {
+  let data;
+  try {
+    data = typeof event.data === "string" ? JSON.parse(event.data) : {};
+  } catch (err) {
+    console.error("WS parse error", err);
+    return;
+  }
+
+  if (data.stage) {
+    setLiveStage(data.stage);
+  }
+
+  if (data.partial) {
+    accumulated += data.partial + " ";
+    setReportText(accumulated);
+  }
+
+  if (data.done) {
+    const finalReport = data.report || accumulated;
+
+    setReportText(finalReport);
+    setOriginalReportText(finalReport);
+
+    if (data.generated_report_url) setPdfUrl(data.generated_report_url);
+    if (data.patient_id) setFirestoreId(data.patient_id);
+
+    setReportGenerated(true);
+    setIsGenerating(false);
+    setLiveStage(null);
+
+    ws.close();
+    return;
+  }
+
+  
+  if (data.error) {
+    console.error("WS error:", data.error);
+    setIsGenerating(false);
+    setLiveStage(null);
+    ws.close();
+  }
+};
+
+
+  ws.onerror = () => {
+    setIsGenerating(false);
+    setLiveStage(null);
+    alert("WebSocket connection failed");
+  };
+};
+
 
   const handleEditReport = () => {
     setIsEditMode(true);
@@ -531,71 +636,17 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
               </div>
             )}
           </div>
+{/* {uploadedImage && (
+  <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
+    <p className="text-sm font-medium text-slate-700 mb-3">Image Preview</p>
+    <img
+      src={uploadedImage.preview}
+      alt="X-ray preview"
+      className="max-h-64 rounded-lg mx-auto"
+    />
+  </div>
+)} */}
 
-          {reportGenerated && (
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-slate-700">Generated Report</h3>
-                {!isEditMode && (
-                  <button
-                    onClick={handleEditReport}
-                    className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit Report
-                  </button>
-                )}
-              </div>
-              
-              {isEditMode ? (
-                <div className="space-y-4">
-                  <textarea
-                    value={reportText}
-                    onChange={(e) => setReportText(e.target.value)}
-                    className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    placeholder="Edit the report text here..."
-                  />
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleSaveChanges}
-                      disabled={isSaving}
-                      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4" />
-                          Save Changes
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleSaveAndDownload}
-                      disabled={isSaving}
-                      className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                    >
-                      <Download className="h-4 w-4" />
-                      Save & Download
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg whitespace-pre-wrap text-sm max-h-64 overflow-y-auto">
-                  {reportText}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="mt-8">
             <h3 className="text-lg font-semibold text-slate-700 mb-4">
@@ -689,6 +740,77 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
               </div>
             )}
           </div>
+          {liveStage && (
+  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+    <p className="text-blue-700 text-sm font-medium animate-pulse">
+      {liveStage}
+    </p>
+  </div>
+)}
+{reportGenerated && (
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-slate-700">Generated Report</h3>
+                {!isEditMode && (
+                  <button
+                    onClick={handleEditReport}
+                    className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit Report
+                  </button>
+                )}
+              </div>
+              
+              {isEditMode ? (
+                <div className="space-y-4">
+                  <textarea
+                    value={reportText}
+                    onChange={(e) => setReportText(e.target.value)}
+                    className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    placeholder="Edit the report text here..."
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSaveChanges}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleSaveAndDownload}
+                      disabled={isSaving}
+                      className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      Save & Download
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg whitespace-pre-wrap text-sm max-h-64 overflow-y-auto">
+                  {reportText}
+                </div>
+              )}
+            </div>
+          )}
 
           {submitStatus && (
             <div
@@ -712,7 +834,8 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
           <div className="flex gap-4 justify-center pt-8">
             {!reportGenerated ? (
               <button
-                onClick={handleGenerateReport}
+                onClick={handleGenerateReportWS}
+
                 disabled={isGenerating}
                 className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transform transition-all disabled:opacity-50 shadow-lg"
               >
