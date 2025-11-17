@@ -16,9 +16,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ---------------------------------------------------------
-# CORS CONFIGURATION - MUST BE FIRST MIDDLEWARE
-# ---------------------------------------------------------
+# Cors configuration
 origins = [
     "https://susuf-doctor.vercel.app",
     "https://susuf-doctor-git-main-awinpangs-projects.vercel.app", 
@@ -36,9 +34,7 @@ app.add_middleware(
     max_age=3600,
 )
 
-# ---------------------------------------------------------
 # ROOT ENDPOINT
-# ---------------------------------------------------------
 @app.get("/")
 async def root():
     return {
@@ -47,9 +43,7 @@ async def root():
         "version": "1.0.0"
     }
 
-# ---------------------------------------------------------
 # HEALTH CHECK ENDPOINT
-# ---------------------------------------------------------
 @app.get("/health")
 async def health_check():
     return {
@@ -57,9 +51,6 @@ async def health_check():
         "service": "SuSufDoctor API"
     }
 
-# ---------------------------------------------------------
-# SAFE STARTUP INITIALIZATION
-# ---------------------------------------------------------
 @app.on_event("startup")
 async def startup_event():
     print("Starting up SuSufDoctor API...")
