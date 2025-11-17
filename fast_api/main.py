@@ -2,8 +2,9 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
+
 from dependencies import initialize_gcloud
-from routers import auth_routes, predict_routes, patient_routes,analytics_routes
+from routers import auth_routes, predict_routes, patient_routes, analytics_routes,predict_ws
 
 
 # Load environment variables first
@@ -16,10 +17,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Cors configuration
+# CORS configuration
 origins = [
     "https://susuf-doctor.vercel.app",
-    "https://susuf-doctor-git-main-awinpangs-projects.vercel.app", 
+    "https://susuf-doctor-git-main-awinpangs-projects.vercel.app",
     "https://susuf-doctor-5t7ex342u-awinpangs-projects.vercel.app",
     "http://localhost:5173",
     "http://localhost:3000"
@@ -39,7 +40,7 @@ app.add_middleware(
 async def root():
     return {
         "message": "Welcome to SuSufDoctor API",
-        "docs": "/docs", 
+        "docs": "/docs",
         "version": "1.0.0"
     }
 
@@ -51,29 +52,35 @@ async def health_check():
         "service": "SuSufDoctor API"
     }
 
+
 @app.on_event("startup")
 async def startup_event():
     print("Starting up SuSufDoctor API...")
     print(f"Allowed Origins: {origins}")
+
+    # Initialize Google Cloud
     try:
         initialize_gcloud()
         print("Google Cloud initialized successfully")
     except Exception as e:
         print(f"Google Cloud init warning: {e}")
-    
-    # Pre-load model on startup
+
+    # Pre-load ML model for performance
     try:
+        from routers.predict_routes import get_model
         print("Pre-loading ML model...")
-        model = predict_routes.get_model()
+        model = get_model()
         print("ML model loaded and cached successfully")
     except Exception as e:
         print(f"Model pre-load warning: {e}")
 
 
+# Register Routers
 app.include_router(auth_routes.router, tags=["Authentication"])
 app.include_router(predict_routes.router, tags=["Predictions"])
+app.include_router(predict_ws.router, tags=["Prediction WebSocket"]) 
 app.include_router(patient_routes.router, tags=["Patients"])
-app.include_router(analytics_routes.router, tags=["Analytics"])  
+app.include_router(analytics_routes.router, tags=["Analytics"])
 
 
 if __name__ == "__main__":

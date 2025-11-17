@@ -39,7 +39,7 @@ def initialize_gcloud():
             credentials = service_account.Credentials.from_service_account_file(
                 credentials_path
             )
-            print("✓ Loaded service account from file")
+            print("Loaded service account from file")
 
         # Render case: JSON string in environment variable
         else:
