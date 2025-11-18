@@ -59,6 +59,12 @@ def load_model(token=HF_TOKEN):
 
 def build_prompt(prior_text, age, sex, bmi, view_type):
     prior_clean = prior_text.strip() if prior_text.strip() else "No prior study available."
+    
+    # Convert BMI to number, default to "unknown" if not provided
+    try:
+        bmi_display = round(float(bmi), 1) if bmi and bmi != "unknown" else "unknown"
+    except (ValueError, TypeError):
+        bmi_display = "unknown"
 
     return f"""
 Analyze this chest X-ray and generate a structured radiology report.
@@ -66,7 +72,7 @@ Analyze this chest X-ray and generate a structured radiology report.
 Patient Information:
 - Age: {age}
 - Sex: {sex}
-- BMI: {bmi}
+- BMI: {bmi_display}
 - View: {view_type}
 
 Prior Report (for comparison):
@@ -92,7 +98,7 @@ def predict_report(
     model_bundle,
     image,
     prior_text="",
-    bmi="unknown",
+    bmi=None,
     age="unknown",
     sex="unknown",
     view_type="unknown",
@@ -102,12 +108,14 @@ def predict_report(
 ):
     processor, model = model_bundle
 
-    print(" Running SuSufDoctor inference...")
+    print("Running SuSufDoctor inference...")
     start = time.time()
 
     # Clean prior report
-    if prior_text.strip():
+    if prior_text and prior_text.strip():
         prior_text = clean_prior_report(prior_text)
+    else:
+        prior_text = ""
 
     # Build prompt
     prompt = build_prompt(prior_text, age, sex, bmi, view_type)
@@ -164,7 +172,8 @@ def predict_report(
     cleaned = clean_generated_report(raw)
     cleaned = fix_clinical_phrasing(cleaned)
 
-    print(f"Done in {time.time() - start:.1f}s — length: {len(cleaned)} chars")
+    elapsed = time.time() - start
+    print(f"Done in {elapsed:.1f}s — length: {len(cleaned)} chars")
 
     return {
         "full_text": cleaned,
