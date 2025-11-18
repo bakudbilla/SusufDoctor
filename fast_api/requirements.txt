@@ -1,37 +1,20 @@
-fastapi==0.120.1
-uvicorn==0.38.0
-python-multipart==0.0.20
-python-dotenv==1.2.1
-pydantic==2.12.3
-pydantic_core==2.41.4
-starlette==0.48.0
-websockets==15.0.1
-
-# Core science stack (GPU-safe versions)
-numpy==2.1.3
-pillow==10.4.0
-requests==2.32.3
-
-# PyMuPDF for PDF extraction
-PyMuPDF==1.24.10
-
-# PDF generation
-reportlab==4.1.0
-
-# HuggingFace ecosystem
-transformers==4.57.1
-tokenizers==0.22.1
-accelerate==0.34.2
-safetensors==0.4.3
-huggingface-hub==0.24.5
-
-# Google Cloud
-google-cloud-storage==2.14.0
-google-cloud-firestore==2.13.0
-
-# Optional
-tqdm==4.66.2
-python-jose==3.3.0
-passlib==1.7.4
-
-# Leave torch out – installed manually in Dockerfile (CUDA)
+fastapi
+uvicorn
+pillow
+python-multipart
+python-jose
+passlib[bcrypt]
+google-cloud-storage
+google-cloud-firestore
+python-dotenv
+PyMuPDF
+reportlab
+requests
+numpy
+pandas
+matplotlib
+wordcloud
+transformers==4.36.2
+torch==2.2.0+cpu
+torchvision==0.17.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
