@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 from PIL import Image
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from routers.predict_routes import get_model
 from susufDoctor_model import predict_report
+
 from google.cloud import storage, firestore
 from utils.pdf_extract import extract_text_from_pdf
 
@@ -178,13 +180,15 @@ async def ws_predict(websocket: WebSocket):
                 prior_text = ""
 
         
-        # Run inference via HuggingFace API
+        # Run inference
         
         await websocket.send_json({"stage": "Generating clinical report…", "progress": 45})
 
+        model_bundle = get_model()
         try:
             result = await to_thread(
                 predict_report,
+                model_bundle,
                 image,
                 prior_text=prior_text,
                 bmi=patient_info.get("bmi"),

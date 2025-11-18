@@ -1,7 +1,7 @@
 import os
-import requests
-import base64
+import torch
 import time
+from transformers import Idefics3ForConditionalGeneration, AutoProcessor
 from dotenv import load_dotenv
 
 from preprocessing import (
@@ -14,29 +14,48 @@ load_dotenv()
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 MODEL_ID = os.getenv("MODEL_NAME", "Awinpang/smolvlm500-finetuned-xray")
-HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{MODEL_ID}"
+
+_MODEL_CACHE = None
+_LOADING = False
 
 system_message = "You are an expert radiologist specialized in chest X-ray interpretation."
 
 
-def call_hf_inference(image_b64: str, prompt: str) -> dict:
-    """Call HuggingFace Inference API"""
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    
-    payload = {
-        "inputs": {
-            "image": image_b64,
-            "text": prompt
-        }
-    }
-    
-    try:
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=120)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return {"error": str(e)}
+# Load the model
+def load_model(token=HF_TOKEN):
+    global _MODEL_CACHE, _LOADING
 
+    if _MODEL_CACHE:
+        return _MODEL_CACHE
+
+    if _LOADING:
+        while _LOADING:
+            time.sleep(0.5)
+        return _MODEL_CACHE
+
+    try:
+        _LOADING = True
+        print("Loading SuSufDoctor model...")
+
+        model = Idefics3ForConditionalGeneration.from_pretrained(
+            MODEL_ID,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+            token=token,
+        )
+
+        processor = AutoProcessor.from_pretrained(MODEL_ID, token=token)
+        model.eval()
+
+        _MODEL_CACHE = (processor, model)
+        print("Model ready.")
+        return _MODEL_CACHE
+
+    finally:
+        _LOADING = False
+
+
+# BUILD PROMPT
 
 def build_prompt(prior_text, age, sex, bmi, view_type):
     prior_clean = prior_text.strip() if prior_text.strip() else "No prior study available."
@@ -68,8 +87,9 @@ IMPRESSION:
 """.strip()
 
 
-# Inference via HuggingFace API
+#Inference
 def predict_report(
+    model_bundle,
     image,
     prior_text="",
     bmi="unknown",
@@ -80,9 +100,9 @@ def predict_report(
     temperature=0.3,
     top_p=0.8,
 ):
-    """Generate radiology report using HuggingFace Inference API"""
-    
-    print("Running SuSufDoctor inference via HF API...")
+    processor, model = model_bundle
+
+    print(" Running SuSufDoctor inference...")
     start = time.time()
 
     # Clean prior report
@@ -91,39 +111,60 @@ def predict_report(
 
     # Build prompt
     prompt = build_prompt(prior_text, age, sex, bmi, view_type)
-    
-    # Convert image to base64
-    if isinstance(image, bytes):
-        image_b64 = base64.b64encode(image).decode('utf-8')
-    else:
-        # If PIL Image, convert to bytes first
-        from io import BytesIO
-        buffer = BytesIO()
-        image.save(buffer, format="PNG")
-        image_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-    # Call HuggingFace API
-    result = call_hf_inference(image_b64, prompt)
-    
-    if "error" in result:
-        return {
-            "full_text": f"Error: {result['error']}",
-            "raw": result.get('error', 'Unknown error'),
-            "mode": "error"
-        }
-    
-    # Extract generated text
-    if isinstance(result, list) and len(result) > 0:
-        raw = result[0].get("generated_text", "")
-    else:
-        raw = result.get("generated_text", "")
-    
-    # Apply preprocessing
+    messages = [
+        {
+            "role": "system",
+            "content": [{"type": "text", "text": system_message}],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image", "image": image},   
+            ],
+        },
+    ]
+
+    # Chat template 
+    prompt_text = processor.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=False,
+    )
+
+    # Convert to tensors
+    inputs = processor(
+        text=prompt_text,
+        images=[image],  
+        return_tensors="pt",
+        padding=True,
+    ).to(model.device)
+
+    # Generate
+    with torch.no_grad():
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            do_sample=True,
+            top_p=top_p,
+            top_k=50,
+            repetition_penalty=1.18,
+            pad_token_id=processor.tokenizer.eos_token_id,
+            eos_token_id=processor.tokenizer.eos_token_id,
+        )
+
+    # Decode new tokens only
+    prompt_len = inputs["input_ids"].shape[1]
+    new_tokens = output_ids[0, prompt_len:]
+    raw = processor.decode(new_tokens, skip_special_tokens=True).strip()
+
+    # Cleanup
     cleaned = clean_generated_report(raw)
     cleaned = fix_clinical_phrasing(cleaned)
 
-    elapsed = time.time() - start
-    print(f"Done in {elapsed:.1f}s — length: {len(cleaned)} chars")
+    print(f"Done in {time.time() - start:.1f}s — length: {len(cleaned)} chars")
 
     return {
         "full_text": cleaned,

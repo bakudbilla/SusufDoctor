@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 
 from dependencies import initialize_gcloud
-from routers import auth_routes, predict_routes, patient_routes, analytics_routes, predict_ws
+from routers import auth_routes, predict_routes, patient_routes, analytics_routes,predict_ws
 
 
 # Load environment variables first
@@ -55,34 +55,35 @@ async def health_check():
 
 @app.on_event("startup")
 async def startup_event():
-    print("=" * 60)
     print("Starting up SuSufDoctor API...")
     print(f"Allowed Origins: {origins}")
-    print("✓ Using HuggingFace Inference API (no local model loading)")
-    print("=" * 60)
-    
-    # Initialize Google Cloud in background (optional)
+
+    # Initialize Google Cloud
     try:
-        print("Initializing Google Cloud in background...")
         initialize_gcloud()
-        print("✓ Google Cloud initialized successfully")
+        print("Google Cloud initialized successfully")
     except Exception as e:
-        print(f"⚠ Google Cloud init warning: {e}")
+        print(f"Google Cloud init warning: {e}")
+
+    # Pre-load ML model for performance
+    try:
+        from routers.predict_routes import get_model
+        print("Pre-loading ML model...")
+        model = get_model()
+        print("ML model loaded and cached successfully")
+    except Exception as e:
+        print(f"Model pre-load warning: {e}")
 
 
 # Register Routers
 app.include_router(auth_routes.router, tags=["Authentication"])
 app.include_router(predict_routes.router, tags=["Predictions"])
-app.include_router(predict_ws.router, tags=["Prediction WebSocket"])
+app.include_router(predict_ws.router, tags=["Prediction WebSocket"]) 
 app.include_router(patient_routes.router, tags=["Patients"])
 app.include_router(analytics_routes.router, tags=["Analytics"])
 
 
 if __name__ == "__main__":
     import uvicorn
-    print("=" * 50)
-    print("FastAPI app is starting up...")
-    print("=" * 50)
-    port = int(os.environ.get("PORT", 8080))
-    print(f"Listening on port {port}")
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
