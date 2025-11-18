@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Filter, Upload, User, Loader } from "lucide-react";
+import { Filter,  Loader } from "lucide-react";
 import { API_URL } from '../../utils/constant'
 import PatientGenderDistribution from './GenderChart';
 
@@ -9,10 +9,7 @@ const sortOptions = [
   { label: "BMI", key: "bmi" },
 ];
 
-const quickActions = [
-  { label: "Upload images", icon: Upload, id: 'upload' },
-  { label: "Patient Management", icon: User, id: 'patients' },
-];
+
 
 export default function FiltersQuickAction() {
   const [patients, setPatients] = useState([]);
@@ -147,8 +144,11 @@ export default function FiltersQuickAction() {
                   <td className="py-3 px-2 font-medium">{patient.name || "N/A"}</td>
                   <td className="py-3 px-2 font-semibold">{patient.age || "N/A"}</td>
                   <td className="py-3 px-2 font-semibold">
-                    {patient.bmi ? patient.bmi.toFixed(2) : "N/A"}
+                    {patient.bmi != null && !isNaN(Number(patient.bmi)) 
+                      ? Number(patient.bmi).toFixed(2) 
+                      : "N/A"}
                   </td>
+
                   <td className="py-3 px-2">{patient.view_type || "N/A"}</td>
                 </tr>
               ))}
