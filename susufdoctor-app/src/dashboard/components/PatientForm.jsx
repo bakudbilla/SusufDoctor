@@ -250,7 +250,8 @@ const handleGenerateReportWS = async () => {
   setOriginalReportText("");
   setLiveStage("Connecting…");
 
-  const ws = new WebSocket("ws://localhost:8000/predict/ws");
+//   const ws = new WebSocket("ws://localhost:8000/predict/ws");
+const ws = new WebSocket("wss://susufdoctor-production.up.railway.app/predict/ws");
   ws.binaryType = "arraybuffer";
 
   ws.onopen = async () => {
