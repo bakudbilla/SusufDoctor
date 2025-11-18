@@ -2,9 +2,11 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
+import asyncio
+import threading
 
 from dependencies import initialize_gcloud
-from routers import auth_routes, predict_routes, patient_routes, analytics_routes,predict_ws
+from routers import auth_routes, predict_routes, patient_routes, analytics_routes, predict_ws
 
 
 # Load environment variables first
@@ -53,26 +55,33 @@ async def health_check():
     }
 
 
+def initialize_background():
+    """Initialize heavy tasks in background to avoid blocking startup"""
+    try:
+        print("Initializing Google Cloud in background...")
+        initialize_gcloud()
+        print("✓ Google Cloud initialized successfully")
+    except Exception as e:
+        print(f"⚠ Google Cloud init warning: {e}")
+    
+    try:
+        print("Pre-loading ML model in background...")
+        from routers.predict_routes import get_model
+        model = get_model()
+        print("✓ ML model loaded and cached successfully")
+    except Exception as e:
+        print(f"⚠ Model pre-load warning: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     print("Starting up SuSufDoctor API...")
     print(f"Allowed Origins: {origins}")
-
-    # Initialize Google Cloud
-    try:
-        initialize_gcloud()
-        print("Google Cloud initialized successfully")
-    except Exception as e:
-        print(f"Google Cloud init warning: {e}")
-
-    # Pre-load ML model for performance
-    try:
-        from routers.predict_routes import get_model
-        print("Pre-loading ML model...")
-        model = get_model()
-        print("ML model loaded and cached successfully")
-    except Exception as e:
-        print(f"Model pre-load warning: {e}")
+    
+    # Run heavy initialization in background thread to avoid blocking
+    # This allows the app to start listening on port 8080 immediately
+    thread = threading.Thread(target=initialize_background, daemon=True)
+    thread.start()
 
 
 # Register Routers
