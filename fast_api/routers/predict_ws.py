@@ -5,9 +5,7 @@ from datetime import datetime, timedelta
 from PIL import Image
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from routers.predict_routes import get_model
-from susufDoctor_model import predict_report
-
+from susufDoctor_model import predict_report, load_model
 from google.cloud import storage, firestore
 from utils.pdf_extract import extract_text_from_pdf
 
@@ -19,9 +17,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 router = APIRouter(prefix="/predict", tags=["Prediction WebSocket"])
 
 
-# ----------------------------------------------------------------------
-# PDF CREATION
-# ----------------------------------------------------------------------
+# Pdf Creation
+
 def create_proper_pdf_bytes(report_text: str, patient_info: dict, is_edited=False) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -180,12 +177,12 @@ async def ws_predict(websocket: WebSocket):
                 prior_text = ""
 
         
-        # Run inference
+        # Run inference - Load model once
         
         await websocket.send_json({"stage": "Generating clinical report…", "progress": 45})
 
-        model_bundle = get_model()
         try:
+            model_bundle = load_model()
             result = await to_thread(
                 predict_report,
                 model_bundle,
@@ -197,6 +194,7 @@ async def ws_predict(websocket: WebSocket):
                 view_type=patient_info.get("view_type"),
             )
         except Exception as e:
+            print(f"Inference error: {str(e)}")
             await websocket.send_json({"error": f"Inference failed: {str(e)}"})
             return await websocket.close()
 
@@ -250,6 +248,7 @@ async def ws_predict(websocket: WebSocket):
                     version="v4",
                 )
             except Exception as e:
+                print(f"PDF upload error: {str(e)}")
                 await websocket.send_json({"warning": f"Failed to upload PDF: {str(e)}"})
 
         
@@ -272,11 +271,10 @@ async def ws_predict(websocket: WebSocket):
                 "analysis_mode": result.get("mode", "inference"),
             })
         except Exception as e:
+            print(f"Firestore save error: {str(e)}")
             await websocket.send_json({"warning": f"Failed to save visit: {str(e)}"})
             saved_id = None
 
-        
-        
         
         await websocket.send_json({
             "done": True,
@@ -291,5 +289,6 @@ async def ws_predict(websocket: WebSocket):
         print("Client disconnected")
 
     except Exception as e:
+        print(f"Unexpected error: {str(e)}")
         await websocket.send_json({"error": f"Unexpected error: {str(e)}"})
         await websocket.close()
