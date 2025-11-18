@@ -4,7 +4,7 @@ from datetime import datetime
 from PIL import Image
 import io
 
-from susufDoctor_model import load_model, predict_report
+from susufDoctor_model import predict_report
 from utils.pdf_utils import create_proper_pdf
 from utils.pdf_extract import extract_text_from_pdf
 from utils.storage_utils import upload_to_bucket
@@ -33,9 +33,13 @@ async def handle_new_report_mode(
         pdf_bytes = await prior_report.read()
         prior_text = extract_text_from_pdf(pdf_bytes)
 
-    model_bundle = load_model()
+    # Call HuggingFace Inference API (no model loading needed)
     result = predict_report(
-        model_bundle, image, prior_text=prior_text, bmi=bmi, age=age, sex=sex,
+        image, 
+        prior_text=prior_text, 
+        bmi=bmi, 
+        age=age, 
+        sex=sex,
         view_type=view_type
     )
 
