@@ -65,9 +65,9 @@ async def startup_event():
     try:
         print("Initializing Google Cloud in background...")
         initialize_gcloud()
-        print("✓ Google Cloud initialized successfully")
+        print("Google Cloud initialized successfully")
     except Exception as e:
-        print(f"⚠ Google Cloud init warning: {e}")
+        print(f"Google Cloud init warning: {e}")
 
 
 # Register Routers
