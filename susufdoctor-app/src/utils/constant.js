@@ -4,7 +4,7 @@ import rlhf from '../assets/RLHF.png';
 import patient from '../assets/patient_analysis.jpeg';
 
 
-export const API_URL= 'https://susufdoctor-production.up.railway.app';
+export const API_URL= 'https://susufdoctor-production.up.railway.app/';
 //export const API_URL = "http://localhost:8000/";
 
 export const services = [
