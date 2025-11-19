@@ -1,4 +1,3 @@
-import json
 import os
 import io
 import asyncio
@@ -129,7 +128,7 @@ async def ws_predict(websocket: WebSocket):
             image = Image.open(io.BytesIO(image_bytes))
             image = image.convert("RGB")
             
-            # Save to BytesIO for sending
+            # Save to BytesIO for sending as file
             img_buffer = io.BytesIO()
             image.save(img_buffer, format='JPEG')
             img_buffer.seek(0)
@@ -140,133 +139,86 @@ async def ws_predict(websocket: WebSocket):
 
         await websocket.send_json({"stage": "Extracting features…", "progress": 20})
 
-        # Prior report logic - handles both new and returning patients
+        # Prior report logic
         prior_text = ""
-        prior_source = "none"
 
-        # CASE 1: Explicit prior report upload (optional for new patients, or explicit upload)
         if prior_hex:
             await websocket.send_json({"stage": "Processing uploaded prior report…", "progress": 30})
             try:
                 pdf_bytes = bytes.fromhex(prior_hex)
                 prior_text = extract_text_from_pdf(pdf_bytes) or ""
-                prior_source = "uploaded"
-                print(f"[Prior Report] Case 1 - Uploaded prior: {len(prior_text)} chars")
             except Exception as e:
                 await websocket.send_json({"warning": f"Failed to extract text from prior PDF: {str(e)}"})
                 prior_text = ""
-                prior_source = "none"
 
-        # CASE 2: Returning patient - fetch from backend (Firestore)
         elif patient_info.get("patient_id"):
             await websocket.send_json({"stage": "Loading previous report from patient record…", "progress": 30})
             try:
+                # Use initialized Firestore client from dependencies
                 firestore_client = get_firestore()
-                patient_doc = firestore_client.collection("patients").document(patient_info["patient_id"])
-                
-                # Get the most recent visit for this patient
                 visits_ref = (
-                    patient_doc.collection("visits")
+                    firestore_client.collection("patients")
+                    .document(patient_info["patient_id"])
+                    .collection("visits")
                     .order_by("created_at", direction="DESCENDING")
                     .limit(1)
                 )
 
-                visits = list(visits_ref.stream())
-                if visits:
-                    visit_data = visits[0].to_dict() or {}
-                    prior_text = visit_data.get("report_text", "")
-                    prior_source = "firestore"
-                    print(f"[Prior Report] Case 2 - Returning patient: {len(prior_text)} chars from Firestore")
-                else:
-                    print(f"[Prior Report] Case 2 - Returning patient but no previous visits found")
-                    prior_source = "none"
+                visits = visits_ref.stream()
+                for v in visits:
+                    prior_text = (v.to_dict() or {}).get("report_text", "")
+                    break
 
             except Exception as e:
-                print(f"[Prior Report] Case 2 - Error fetching from Firestore: {str(e)}")
                 await websocket.send_json({"warning": f"Failed to fetch prior visit: {str(e)}"})
                 prior_text = ""
-                prior_source = "none"
-        
-        # CASE 3: New patient - no prior report (optional, generates single-study report)
-        else:
-            print(f"[Prior Report] Case 3 - New patient: no prior report provided (single-study mode)")
-            prior_source = "none"
 
         # Call HuggingFace Space for inference
         await websocket.send_json({"stage": "Generating clinical report…", "progress": 45})
 
         try:
-            # Reset buffer position before sending
-            img_buffer.seek(0)
-            
-            # Prepare multipart/form-data payload
+            # Prepare FormData (multipart/form-data)
             files = {
                 'file': ('xray.jpg', img_buffer, 'image/jpeg')
             }
             
             data = {
-                'prior_text': prior_text or "",
-                'age': str(patient_info.get("age") or "unknown"),
-                'sex': str(patient_info.get("sex", "unknown")),
-                'bmi': str(patient_info.get("bmi") or "unknown"),
-                'view_type': str(patient_info.get("view_type", "unknown")),
+                'prior_text': prior_text,
+                'age': patient_info.get("age") or None,
+                'sex': patient_info.get("sex", "unknown"),
+                'bmi': patient_info.get("bmi") or None,
+                'view_type': patient_info.get("view_type", "unknown"),
             }
-            
-            print(f"Sending to HF Space: {HF_SPACE_URL}/predict")
-            print(f"[Request] Prior source: {prior_source}")
-            print(f"[Request] Data fields: age={data['age']}, sex={data['sex']}, bmi={data['bmi']}, view_type={data['view_type']}")
-            print(f"[Request] Prior text: {len(prior_text)} chars")
             
             # Prepare headers
             headers = {}
             if HF_TOKEN:
                 headers['Authorization'] = f'Bearer {HF_TOKEN}'
             
-            # Use httpx for async request with multipart/form-data
+            # Use httpx for async request
             async with httpx.AsyncClient(timeout=300.0) as client:
                 response = await client.post(
                     f"{HF_SPACE_URL}/predict",
                     files=files,
                     data=data,
-                    headers=headers,
-                    follow_redirects=True,
+                    headers=headers
                 )
-            
-            print(f"HF Space response status: {response.status_code}")
-            print(f"HF Space response content length: {len(response.content)} bytes")
             
             response.raise_for_status()
             result = response.json()
             
-            print(f"Response JSON: {json.dumps(result, indent=2)[:500]}...")
-            
-            if not result.get("success", False):
-                error_msg = result.get("error", "Unknown error from HF Space")
-                raise Exception(f"HF Space returned error: {error_msg}")
+            if "error" in result or not result.get("success", True):
+                raise Exception(result.get("error", "Unknown error from HF Space"))
             
             report_text = result.get("report", "")
             
-            if not report_text or len(report_text) < 50:
-                raise Exception(f"Invalid report received from HF Space (length: {len(report_text)}). Response: {result}")
-            
-        except httpx.TimeoutException as e:
-            print(f"HF Space request timed out: {str(e)}")
+        except httpx.TimeoutException:
+            print("HF Space request timed out")
             await websocket.send_json({"error": "Inference timed out. Please try again."})
-            return await websocket.close()
-            
-        except httpx.HTTPError as e:
-            print(f"HTTP error: {str(e)}")
-            try:
-                error_detail = response.text
-            except:
-                error_detail = "Unable to read response"
-            await websocket.send_json({"error": f"HTTP error: {str(e)} - {error_detail}"})
             return await websocket.close()
             
         except Exception as e:
             print(f"Inference error: {str(e)}")
-            import traceback
-            traceback.print_exc()
             await websocket.send_json({"error": f"Inference failed: {str(e)}"})
             return await websocket.close()
 
@@ -349,7 +301,5 @@ async def ws_predict(websocket: WebSocket):
 
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
-        import traceback
-        traceback.print_exc()
         await websocket.send_json({"error": f"Unexpected error: {str(e)}"})
         await websocket.close()
