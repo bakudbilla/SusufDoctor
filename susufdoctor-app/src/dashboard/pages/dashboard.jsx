@@ -37,7 +37,7 @@ export function Dashboard() {
       const token = localStorage.getItem("access_token");
 
       try {
-        const userResponse = await fetch(`${API_URL}auth/me`, {
+        const userResponse = await fetch(`${API_URL}auth/me/`, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -57,7 +57,7 @@ export function Dashboard() {
         console.error("Auth/me endpoint not available, using localStorage",e);
       }
 
-      const patientsResponse = await fetch(`${API_URL}patients`, {
+      const patientsResponse = await fetch(`${API_URL}patients/`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -74,7 +74,7 @@ export function Dashboard() {
           const createdDate = p.latest_visit?.split("T")[0];
           return createdDate === today;
         }).length;
-
+console.log(totalScans)
         setStats({
           totalScans,
           completedToday,
@@ -94,7 +94,7 @@ export function Dashboard() {
       setLoggingOut(true);
       const token = localStorage.getItem("access_token");
 
-      const response = await fetch(`${API_URL}auth/logout`, {
+      const response = await fetch(`${API_URL}auth/logout/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
