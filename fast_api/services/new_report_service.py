@@ -1,74 +1,102 @@
-from fastapi import APIRouter, File, UploadFile, Form, Depends, HTTPException
+from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from datetime import datetime
-from google.cloud import firestore, storage
+from PIL import Image
+import io
+import base64
+import requests
 
-from dependencies import verify_token, get_firestore, get_storage_bucket
-# from susufDoctor_model import predict_report
-from services.new_report_service import handle_new_report_mode
-from services.edit_report_service import handle_edit_mode
+from utils.pdf_utils import create_proper_pdf
+from utils.pdf_extract import extract_text_from_pdf
+from utils.storage_utils import upload_to_bucket
+from utils.view_utils import normalize_view_type
 
-router = APIRouter(prefix="/predict", tags=["Prediction"])
+# HuggingFace Space URL
+HF_SPACE_URL = "https://awinpang-smolvlm500-xray-api.hf.space"
 
 
-@router.get("/health")
-async def health_check():
-    """Health check - using HF Space for inference"""
-    return {
-        "status": "healthy",
-        "model": "HuggingFace Space",
-        "timestamp": datetime.now().isoformat()
+async def handle_new_report_mode(
+    xray_image,
+    prior_report,
+    bmi,
+    age,
+    sex,
+    view_type,
+    patient_name,
+    current_user,
+    db,
+    bucket
+):
+    if not xray_image:
+        raise HTTPException(400, "X-ray image is required")
+
+    # Read and encode image
+    image_bytes = await xray_image.read()
+    image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+
+    # Extract prior report if provided
+    prior_text = ""
+    if prior_report:
+        pdf_bytes = await prior_report.read()
+        prior_text = extract_text_from_pdf(pdf_bytes)
+
+    # Call HuggingFace Space for inference
+    try:
+        response = requests.post(
+            f"{HF_SPACE_URL}/predict",
+            json={
+                "image_base64": image_b64,
+                "prior_text": prior_text,
+                "age": age,
+                "sex": sex,
+                "bmi": bmi,
+                "view_type": view_type,
+            },
+            timeout=300
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        if "error" in result:
+            raise HTTPException(500, result["error"])
+        
+        report_text = result.get("report", "")
+        
+    except Exception as e:
+        raise HTTPException(500, f"Inference failed: {str(e)}")
+
+    # Create patient info for PDF
+    patient_info = {
+        "patient_name": patient_name,
+        "radiologist_name": current_user["full_name"],
+        "view_type": normalize_view_type(view_type),
+        "age": age,
+        "sex": sex,
+        "bmi": bmi
     }
 
+    # Generate and upload PDF
+    pdf_bytes = create_proper_pdf(report_text, patient_info)
+    filename = f"generated_reports/{datetime.now().strftime('%Y%m%d-%H%M%S')}.pdf"
+    pdf_url = upload_to_bucket(bucket, pdf_bytes, filename, "application/pdf")
 
-@router.post("")
-async def predict(
-    xray_image: UploadFile = File(None),
-    prior_report: UploadFile = File(None),
-    bmi: float = Form(None),
-    age: int = Form(None),
-    sex: str = Form(None),
-    view_type: str = Form(None),
-    patient_name: str = Form(None),
-    report_text: str = Form(None),
-    firestore_id: str = Form(None),
-    is_edit: bool = Form(False),
-    current_user: dict = Depends(verify_token),
-    db: firestore.Client = Depends(get_firestore),
-    bucket: storage.Bucket = Depends(get_storage_bucket)
-):
-    try:
-        if is_edit and firestore_id and report_text:
-            return await handle_edit_mode(
-                firestore_id,
-                report_text,
-                patient_name,
-                age,
-                sex,
-                bmi,
-                view_type,
-                current_user,
-                db,
-                bucket
-            )
+    # Save to Firestore
+    doc_ref = db.collection("patients").document()
+    doc_ref.set({
+        "patient_id": doc_ref.id,
+        "patient_name": patient_name,
+        "generated_report_url": pdf_url,
+        "report_text": report_text,
+        "created_at": datetime.now().isoformat(),
+        "is_edited": False
+    })
 
-        return await handle_new_report_mode(
-            xray_image,
-            prior_report,
-            bmi,
-            age,
-            sex,
-            view_type,
-            patient_name,
-            current_user,
-            db,
-            bucket
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        return JSONResponse(
-            {"status": "error", "message": f"Internal server error: {str(e)}"},
-            status_code=500
-        )
+    return JSONResponse({
+        "status": "success",
+        "message": "Report generated successfully",
+        "data": {
+            "patient_id": doc_ref.id,
+            "generated_report_url": pdf_url,
+            "report_text": report_text
+        }
+    })
