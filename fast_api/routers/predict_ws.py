@@ -1,13 +1,12 @@
 import os
 import io
 import asyncio
-import base64
-import httpx  # Use httpx instead of requests for async
+import httpx
 from datetime import datetime, timedelta
 from PIL import Image
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from google.cloud import storage, firestore
+from dependencies import get_firestore, get_storage_bucket
 from utils.pdf_extract import extract_text_from_pdf
 
 from reportlab.lib.pagesizes import letter
@@ -19,11 +18,10 @@ router = APIRouter(prefix="/predict", tags=["Prediction WebSocket"])
 
 # HuggingFace Space URL
 HF_SPACE_URL = "https://awinpang-smolvlm500-xray-api.hf.space"
-HF_TOKEN = os.getenv("HF_TOKEN")  # Add this if your Space is private
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 
 # PDF CREATION
-
 def create_proper_pdf_bytes(report_text: str, patient_info: dict, is_edited=False) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -88,7 +86,6 @@ def create_proper_pdf_bytes(report_text: str, patient_info: dict, is_edited=Fals
 
 
 # UTILS
-
 async def to_thread(fn, *args, **kwargs):
     return await asyncio.to_thread(fn, *args, **kwargs)
 
@@ -108,7 +105,6 @@ def chunk_text(text: str, max_chars=60):
 
 
 # MAIN WEBSOCKET ENDPOINT
-
 @router.websocket("/ws")
 async def ws_predict(websocket: WebSocket):
     await websocket.accept()
@@ -158,12 +154,13 @@ async def ws_predict(websocket: WebSocket):
         elif patient_info.get("patient_id"):
             await websocket.send_json({"stage": "Loading previous report from patient record…", "progress": 30})
             try:
-                firestore_client = firestore.Client()
+                # ✅ Use initialized Firestore client from dependencies
+                firestore_client = get_firestore()
                 visits_ref = (
                     firestore_client.collection("patients")
                     .document(patient_info["patient_id"])
                     .collection("visits")
-                    .order_by("created_at", direction=firestore.Query.DESCENDING)
+                    .order_by("created_at", direction="DESCENDING")
                     .limit(1)
                 )
 
@@ -176,7 +173,7 @@ async def ws_predict(websocket: WebSocket):
                 await websocket.send_json({"warning": f"Failed to fetch prior visit: {str(e)}"})
                 prior_text = ""
 
-        # Call HuggingFace Space for inference - FIXED: Now sending FormData
+        # Call HuggingFace Space for inference
         await websocket.send_json({"stage": "Generating clinical report…", "progress": 45})
 
         try:
@@ -245,30 +242,28 @@ async def ws_predict(websocket: WebSocket):
 
         pdf_bytes = await to_thread(create_proper_pdf_bytes, report_text, patient_info_min)
 
-        # Upload PDF to GCS
-        storage_client = storage.Client()
-        firestore_client = firestore.Client()
+        # ✅ Use initialized clients from dependencies
+        firestore_client = get_firestore()
+        bucket = get_storage_bucket()
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         safe_name = (patient_info_min["patient_name"] or "patient").replace("/", "_")
         filename = f"generated_reports/{timestamp}_SuSufDoctor_Report_{safe_name}.pdf"
 
-        BUCKET_NAME = os.getenv("BUCKET_NAME")
         generated_report_url = None
 
-        if BUCKET_NAME:
-            try:
-                bucket = storage_client.bucket(BUCKET_NAME)
-                blob = bucket.blob(filename)
-                blob.upload_from_string(pdf_bytes, content_type="application/pdf")
-                generated_report_url = blob.generate_signed_url(
-                    expiration=timedelta(days=7),
-                    method="GET",
-                    version="v4",
-                )
-            except Exception as e:
-                print(f"PDF upload error: {str(e)}")
-                await websocket.send_json({"warning": f"Failed to upload PDF: {str(e)}"})
+        # Upload PDF to GCS
+        try:
+            blob = bucket.blob(filename)
+            blob.upload_from_string(pdf_bytes, content_type="application/pdf")
+            generated_report_url = blob.generate_signed_url(
+                expiration=timedelta(days=7),
+                method="GET",
+                version="v4",
+            )
+        except Exception as e:
+            print(f"PDF upload error: {str(e)}")
+            await websocket.send_json({"warning": f"Failed to upload PDF: {str(e)}"})
 
         # Save visit to Firestore
         try:
