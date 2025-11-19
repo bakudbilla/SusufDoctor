@@ -19,12 +19,15 @@ app = FastAPI(
 
 # CORS configuration
 origins = [
+    # Production frontend
     "https://susuf-doctor.vercel.app",
     "https://susuf-doctor-git-main-awinpangs-projects.vercel.app",
     "https://susuf-doctor-5t7ex342u-awinpangs-projects.vercel.app",
+    "https://susufdoctor-production.up.railway.app",
     "http://localhost:5173",
     "http://localhost:3000"
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
