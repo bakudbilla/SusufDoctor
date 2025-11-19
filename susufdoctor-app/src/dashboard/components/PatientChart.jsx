@@ -44,7 +44,7 @@ export default function PatientsPerMonthChart() {
       setError("");
       const token = localStorage.getItem("access_token");
 
-      const response = await fetch(`${API_URL}patients/`, {
+      const response = await fetch(`${API_URL}/patients/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

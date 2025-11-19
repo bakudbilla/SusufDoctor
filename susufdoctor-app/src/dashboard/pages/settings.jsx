@@ -27,7 +27,7 @@ export default function Settings() {
       setInitialLoading(true);
       const token = localStorage.getItem("access_token");
       
-      const response = await fetch(`${API_URL}auth/profile`, {
+      const response = await fetch(`${API_URL}/auth/profile/`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -96,7 +96,7 @@ export default function Settings() {
         formDataWithFile.append("profile_picture", profilePicture);
         
         console.log("Uploading profile picture...");
-        const uploadResponse = await fetch(`${API_URL}auth/upload-profile-picture`, {
+        const uploadResponse = await fetch(`${API_URL}/auth/upload-profile-picture/`, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${token}`,
@@ -119,7 +119,7 @@ export default function Settings() {
 
       // Update profile data
       console.log("Updating profile data...");
-      const response = await fetch(`${API_URL}auth/profile`, {
+      const response = await fetch(`${API_URL}/auth/profile/`, {
         method: "PATCH",
         headers: {
           "Authorization": `Bearer ${token}`,

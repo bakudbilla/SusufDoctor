@@ -5,7 +5,7 @@ export default function WordCloud({ refreshTrigger }) {
   const [imgUrl, setImgUrl] = useState("");
 
   useEffect(() => {
-    const url = `${API_URL}analytics/wordcloud?t=${Date.now()}`;
+    const url = `${API_URL}/analytics/wordcloud?t=${Date.now()}/`;
     setImgUrl(url);
   }, [refreshTrigger]);
 
@@ -20,7 +20,7 @@ export default function WordCloud({ refreshTrigger }) {
           className="wordcloud-img max-w-4xl w-full rounded-xl shadow-lg"
           onError={(e) => {
             e.target.onerror = null;
-            e.target.src = "/fallback.png";
+            // e.target.src = "/fallback.png";
           }}
         />
       ) : (

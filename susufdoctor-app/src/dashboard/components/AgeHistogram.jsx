@@ -42,7 +42,7 @@ export default function AgeDistributionHistogram() {
       setError(null)
       const token = localStorage.getItem("access_token")
 
-      const response = await fetch(`${API_URL}patients/`, {
+      const response = await fetch(`${API_URL}/patients/`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",

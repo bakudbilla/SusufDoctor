@@ -51,7 +51,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       setLoadingPriorReport(true);
       const token = localStorage.getItem("access_token");
 
-      const response = await fetch(`${API_URL}patients/${patientId}/visits`, {
+      const response = await fetch(`${API_URL}/patients/${patientId}/visits/`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -251,7 +251,7 @@ const handleGenerateReportWS = async () => {
   setLiveStage("Connecting…");
 
 //   const ws = new WebSocket("ws://localhost:8000/predict/ws");
-const ws = new WebSocket("wss://susufdoctor-production.up.railway.app/predict/ws");
+const ws = new WebSocket("wss://susufdoctor-production.up.railway.app/predict/ws/");
   ws.binaryType = "arraybuffer";
 
   ws.onopen = async () => {
@@ -367,7 +367,7 @@ const ws = new WebSocket("wss://susufdoctor-production.up.railway.app/predict/ws
       formDataToSend.append("bmi", formData.bmi);
       formDataToSend.append("view_type", formData.xrayView);
 
-      const response = await fetch(`${API_URL}predict/`, {
+      const response = await fetch(`${API_URL}/predict/`, {
         method: "POST",
         headers: { 
           "Authorization": `Bearer ${token}`,
@@ -426,7 +426,7 @@ const ws = new WebSocket("wss://susufdoctor-production.up.railway.app/predict/ws
       formDataToSend.append("bmi", formData.bmi);
       formDataToSend.append("view_type", formData.xrayView);
 
-      const response = await fetch(`${API_URL}predict/`, {
+      const response = await fetch(`${API_URL}/predict/`, {
         method: "POST",
         headers: { 
           "Authorization": `Bearer ${token}`,
