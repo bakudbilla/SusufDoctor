@@ -4,7 +4,7 @@ from datetime import datetime
 from google.cloud import firestore, storage
 
 from dependencies import verify_token, get_firestore, get_storage_bucket
-from susufDoctor_model import predict_report
+# from susufDoctor_model import predict_report
 from services.new_report_service import handle_new_report_mode
 from services.edit_report_service import handle_edit_mode
 
