@@ -2,7 +2,7 @@ import os
 import io
 import asyncio
 import base64
-import requests
+import httpx  # Use httpx instead of requests for async
 from datetime import datetime, timedelta
 from PIL import Image
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -19,6 +19,7 @@ router = APIRouter(prefix="/predict", tags=["Prediction WebSocket"])
 
 # HuggingFace Space URL
 HF_SPACE_URL = "https://awinpang-smolvlm500-xray-api.hf.space"
+HF_TOKEN = os.getenv("HF_TOKEN")  # Add this if your Space is private
 
 
 # PDF CREATION
@@ -126,7 +127,15 @@ async def ws_predict(websocket: WebSocket):
                 return await websocket.close()
 
             image_bytes = bytes.fromhex(xray_hex)
-            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # Verify it's a valid image
+            image = Image.open(io.BytesIO(image_bytes))
+            image = image.convert("RGB")
+            
+            # Save to BytesIO for sending as file
+            img_buffer = io.BytesIO()
+            image.save(img_buffer, format='JPEG')
+            img_buffer.seek(0)
 
         except Exception as e:
             await websocket.send_json({"error": f"Failed to decode X-ray: {str(e)}"})
@@ -167,29 +176,49 @@ async def ws_predict(websocket: WebSocket):
                 await websocket.send_json({"warning": f"Failed to fetch prior visit: {str(e)}"})
                 prior_text = ""
 
-        # Call HuggingFace Space for inference
+        # Call HuggingFace Space for inference - FIXED: Now sending FormData
         await websocket.send_json({"stage": "Generating clinical report…", "progress": 45})
 
         try:
-            response = requests.post(
-                f"{HF_SPACE_URL}/predict",
-                json={
-                    "image_base64": image_b64,
-                    "prior_text": prior_text,
-                    "age": patient_info.get("age"),
-                    "sex": patient_info.get("sex"),
-                    "bmi": patient_info.get("bmi"),
-                    "view_type": patient_info.get("view_type"),
-                },
-                timeout=300
-            )
+            # Prepare FormData (multipart/form-data)
+            files = {
+                'file': ('xray.jpg', img_buffer, 'image/jpeg')
+            }
+            
+            data = {
+                'prior_text': prior_text,
+                'age': patient_info.get("age") or None,
+                'sex': patient_info.get("sex", "unknown"),
+                'bmi': patient_info.get("bmi") or None,
+                'view_type': patient_info.get("view_type", "unknown"),
+            }
+            
+            # Prepare headers
+            headers = {}
+            if HF_TOKEN:
+                headers['Authorization'] = f'Bearer {HF_TOKEN}'
+            
+            # Use httpx for async request
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                response = await client.post(
+                    f"{HF_SPACE_URL}/predict",
+                    files=files,
+                    data=data,
+                    headers=headers
+                )
+            
             response.raise_for_status()
             result = response.json()
             
-            if "error" in result:
-                raise Exception(result["error"])
+            if "error" in result or not result.get("success", True):
+                raise Exception(result.get("error", "Unknown error from HF Space"))
             
             report_text = result.get("report", "")
+            
+        except httpx.TimeoutException:
+            print("HF Space request timed out")
+            await websocket.send_json({"error": "Inference timed out. Please try again."})
+            return await websocket.close()
             
         except Exception as e:
             print(f"Inference error: {str(e)}")
