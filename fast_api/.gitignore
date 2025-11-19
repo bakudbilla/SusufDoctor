@@ -8,3 +8,4 @@ __pycache__/
 *.h5
 *.onnx
 venv_py311
+smolvlm500-xray-api/

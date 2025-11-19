@@ -1,11 +1,12 @@
 import os
 import io
 import asyncio
+import base64
+import requests
 from datetime import datetime, timedelta
 from PIL import Image
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from susufDoctor_model import predict_report, load_model
 from google.cloud import storage, firestore
 from utils.pdf_extract import extract_text_from_pdf
 
@@ -16,8 +17,11 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
 router = APIRouter(prefix="/predict", tags=["Prediction WebSocket"])
 
+# HuggingFace Space URL
+HF_SPACE_URL = "https://awinpang-smolvlm500-xray-api.hf.space"
 
-# Pdf Creation
+
+# PDF CREATION
 
 def create_proper_pdf_bytes(report_text: str, patient_info: dict, is_edited=False) -> bytes:
     buffer = io.BytesIO()
@@ -41,14 +45,12 @@ def create_proper_pdf_bytes(report_text: str, patient_info: dict, is_edited=Fals
     normal_style = styles["Normal"]
     story = []
 
-    # Title
     title = "SuSufDoctor Radiology Report"
     if is_edited:
         title += " (Edited)"
     story.append(Paragraph(title, title_style))
     story.append(Spacer(1, 20))
 
-    # Patient info
     patient_info_text = f"""
 <b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br/>
 <b>Patient:</b> {patient_info.get('patient_name','Unknown')}<br/>
@@ -63,7 +65,6 @@ def create_proper_pdf_bytes(report_text: str, patient_info: dict, is_edited=Fals
     story.append(Paragraph("<hr/>", normal_style))
     story.append(Spacer(1, 20))
 
-    # Report body
     for line in report_text.splitlines():
         stripped = line.strip()
 
@@ -83,7 +84,6 @@ def create_proper_pdf_bytes(report_text: str, patient_info: dict, is_edited=Fals
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
-
 
 
 # UTILS
@@ -106,7 +106,6 @@ def chunk_text(text: str, max_chars=60):
         yield " ".join(chunk)
 
 
-
 # MAIN WEBSOCKET ENDPOINT
 
 @router.websocket("/ws")
@@ -120,16 +119,14 @@ async def ws_predict(websocket: WebSocket):
 
         await websocket.send_json({"stage": "Analyzing X-ray image…", "progress": 5})
 
-        
         # Decode image
-        
         try:
             if not xray_hex:
                 await websocket.send_json({"error": "No X-ray provided."})
                 return await websocket.close()
 
             image_bytes = bytes.fromhex(xray_hex)
-            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
 
         except Exception as e:
             await websocket.send_json({"error": f"Failed to decode X-ray: {str(e)}"})
@@ -137,14 +134,9 @@ async def ws_predict(websocket: WebSocket):
 
         await websocket.send_json({"stage": "Extracting features…", "progress": 20})
 
-        
         # Prior report logic
-        # Case 1: User uploads PDF manually
-        # Case 2: Returning patient → fetch last visit
-    
         prior_text = ""
 
-        # Manual PDF upload
         if prior_hex:
             await websocket.send_json({"stage": "Processing uploaded prior report…", "progress": 30})
             try:
@@ -154,7 +146,6 @@ async def ws_predict(websocket: WebSocket):
                 await websocket.send_json({"warning": f"Failed to extract text from prior PDF: {str(e)}"})
                 prior_text = ""
 
-        # Returning patient – Firestore fetch
         elif patient_info.get("patient_id"):
             await websocket.send_json({"stage": "Loading previous report from patient record…", "progress": 30})
             try:
@@ -176,33 +167,36 @@ async def ws_predict(websocket: WebSocket):
                 await websocket.send_json({"warning": f"Failed to fetch prior visit: {str(e)}"})
                 prior_text = ""
 
-        
-        # Run inference - Load model once
-        
+        # Call HuggingFace Space for inference
         await websocket.send_json({"stage": "Generating clinical report…", "progress": 45})
 
         try:
-            model_bundle = load_model()
-            result = await to_thread(
-                predict_report,
-                model_bundle,
-                image,
-                prior_text=prior_text,
-                bmi=patient_info.get("bmi"),
-                age=patient_info.get("age"),
-                sex=patient_info.get("sex"),
-                view_type=patient_info.get("view_type"),
+            response = requests.post(
+                f"{HF_SPACE_URL}/predict",
+                json={
+                    "image_base64": image_b64,
+                    "prior_text": prior_text,
+                    "age": patient_info.get("age"),
+                    "sex": patient_info.get("sex"),
+                    "bmi": patient_info.get("bmi"),
+                    "view_type": patient_info.get("view_type"),
+                },
+                timeout=300
             )
+            response.raise_for_status()
+            result = response.json()
+            
+            if "error" in result:
+                raise Exception(result["error"])
+            
+            report_text = result.get("report", "")
+            
         except Exception as e:
             print(f"Inference error: {str(e)}")
             await websocket.send_json({"error": f"Inference failed: {str(e)}"})
             return await websocket.close()
 
-        report_text = result.get("full_text", "") or ""
-
-        
         # Stream output to UI
-        
         await websocket.send_json({"stage": "Streaming report…", "progress": 70})
         for chunk in chunk_text(report_text):
             await websocket.send_json({"partial": chunk})
@@ -210,9 +204,7 @@ async def ws_predict(websocket: WebSocket):
 
         await websocket.send_json({"stage": "Finalizing…", "progress": 90})
 
-        
         # PDF generation
-        
         patient_info_min = {
             "patient_name": patient_info.get("patient_name"),
             "radiologist_name": patient_info.get("radiologist_name", "SuSufDoctor"),
@@ -224,9 +216,7 @@ async def ws_predict(websocket: WebSocket):
 
         pdf_bytes = await to_thread(create_proper_pdf_bytes, report_text, patient_info_min)
 
-        
         # Upload PDF to GCS
-        
         storage_client = storage.Client()
         firestore_client = firestore.Client()
 
@@ -251,9 +241,7 @@ async def ws_predict(websocket: WebSocket):
                 print(f"PDF upload error: {str(e)}")
                 await websocket.send_json({"warning": f"Failed to upload PDF: {str(e)}"})
 
-        
-        # Save visit
-        
+        # Save visit to Firestore
         try:
             doc_ref = firestore_client.collection("patients").document()
             saved_id = doc_ref.id
@@ -268,14 +256,13 @@ async def ws_predict(websocket: WebSocket):
                 "generated_report_url": generated_report_url,
                 "report_text": report_text,
                 "is_edited": False,
-                "analysis_mode": result.get("mode", "inference"),
+                "analysis_mode": "inference",
             })
         except Exception as e:
             print(f"Firestore save error: {str(e)}")
             await websocket.send_json({"warning": f"Failed to save visit: {str(e)}"})
             saved_id = None
 
-        
         await websocket.send_json({
             "done": True,
             "progress": 100,

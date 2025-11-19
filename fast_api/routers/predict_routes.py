@@ -4,26 +4,21 @@ from datetime import datetime
 from google.cloud import firestore, storage
 
 from dependencies import verify_token, get_firestore, get_storage_bucket
-from susufDoctor_model import load_model
 from services.new_report_service import handle_new_report_mode
 from services.edit_report_service import handle_edit_mode
 
 router = APIRouter(prefix="/predict", tags=["Prediction"])
 
-def get_model():
-    return load_model()
 
 @router.get("/health")
 async def health_check():
-    try:
-        model_bundle = get_model()
-        return {
-            "status": "healthy",
-            "model_loaded": model_bundle is not None,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        return JSONResponse({"status": "unhealthy", "error": str(e)}, status_code=500)
+    """Health check - using HF Space for inference"""
+    return {
+        "status": "healthy",
+        "model": "HuggingFace Space",
+        "timestamp": datetime.now().isoformat()
+    }
+
 
 @router.post("")
 async def predict(
