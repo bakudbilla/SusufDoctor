@@ -84,9 +84,10 @@ app.include_router(analytics_routes.router, tags=["Analytics"])
 
 if __name__ == "__main__":
     import uvicorn
-    print("=" * 50)
-    print("FastAPI app is starting up...")
-    print("=" * 50)
     port = int(os.environ.get("PORT", 8080))
-    print(f"Listening on port {port}")
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        forwarded_allow_ips="*"
+    )
