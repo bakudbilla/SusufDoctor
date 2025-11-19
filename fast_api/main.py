@@ -6,6 +6,7 @@ import os
 from dependencies import initialize_gcloud
 from routers import auth_routes, predict_routes, patient_routes, analytics_routes, predict_ws
 
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 # Load environment variables first
 load_dotenv()
@@ -16,6 +17,7 @@ app = FastAPI(
     description="Radiology Report Generation System for Radiologists",
     version="1.0.0",
 )
+app.add_middleware(HTTPSRedirectMiddleware)
 
 # CORS configuration
 origins = [
