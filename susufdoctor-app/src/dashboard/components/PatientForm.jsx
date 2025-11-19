@@ -264,26 +264,27 @@ const ws = new WebSocket("wss://susufdoctor-production.up.railway.app/predict/ws
         .join("");
 
       let priorHex = null;
-      if (reportFile && reportFile.file && !reportFile.isPrior) {
-        const pdfBuffer = await reportFile.file.arrayBuffer();
-        priorHex = Array.from(new Uint8Array(pdfBuffer))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-      }
+if (reportFile && reportFile.file) {
+  const pdfBuffer = await reportFile.file.arrayBuffer();
+  priorHex = Array.from(new Uint8Array(pdfBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
 
-      ws.send(
-        JSON.stringify({
-          xray_hex: xrayHex,
-          prior_hex: priorHex,
-          patient_info: {
-            bmi: formData.bmi,
-            age: formData.age,
-            sex: formData.sex,
-            view_type: formData.xrayView,
-            patient_name: formData.patientName
-          }
-        })
-      );
+ws.send(
+  JSON.stringify({
+    xray_hex: xrayHex,
+    prior_hex: priorHex,
+    patient_info: {
+      patient_id: selectedPatient?.patient_id,  
+      bmi: formData.bmi,
+      age: formData.age,
+      sex: formData.sex,
+      view_type: formData.xrayView,
+      patient_name: formData.patientName
+    }
+  })
+);
     } catch (err) {
       console.error("WS send error", err);
       setIsGenerating(false);
