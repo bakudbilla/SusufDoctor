@@ -1,5 +1,6 @@
 import os
 import json
+import os
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from google.cloud import storage, firestore
@@ -23,83 +24,101 @@ def initialize_gcloud():
     Initialize Google Cloud clients.
     Supports:
     1. Localhost: GCP_CREDENTIALS_PATH (path to JSON file)
-    2. Render: GCP_CREDENTIALS (JSON string in environment variable)
+    2. Render/Production: GCP_CREDENTIALS (JSON string in environment variable)
+    3. Fallback: Application Default Credentials (ADC)
     """
     global storage_client, firestore_client, bucket
 
     credentials = None
     project_id = os.getenv("GCP_PROJECT_ID")
 
+    if not project_id:
+        raise ValueError("GCP_PROJECT_ID environment variable is required")
+
     try:
         credentials_path = os.getenv("GCP_CREDENTIALS_PATH")
 
-        # Localhost case: loading JSON file
-        if credentials_path and os.path.exists(credentials_path):
-            print(f"Loading GCP credentials from file: {credentials_path}")
-            credentials = service_account.Credentials.from_service_account_file(
-                credentials_path
-            )
-            print("Loaded service account from file")
+        if credentials_path:
+            if not os.path.isabs(credentials_path):
+                credentials_path = os.path.join(os.getcwd(), credentials_path)
 
-        # Render case: JSON string in environment variable
-        else:
+            if os.path.exists(credentials_path):
+                print(f"Loading GCP credentials from file: {credentials_path}")
+                credentials = service_account.Credentials.from_service_account_file(
+                    credentials_path
+                )
+                print("Service account loaded from file")
+            else:
+                print(f"Credentials file not found at: {credentials_path}")
+
+        if not credentials:
             creds_json = os.getenv("GCP_CREDENTIALS")
             if creds_json:
-                print("Loading GCP credentials from environment variable")
+                print(" Loading GCP credentials from environment variable")
+                try:
+                    creds_info = json.loads(creds_json)
 
-                creds_info = json.loads(creds_json)
+                    if "private_key" in creds_info:
+                        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
 
-                # Replace escaped newlines with real newlines
-                if "private_key" in creds_info:
-                    creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
+                    credentials = service_account.Credentials.from_service_account_info(
+                        creds_info
+                    )
+                    print("✓ Service account loaded from JSON string")
+                except json.JSONDecodeError as e:
+                    print(f"✗ GCP_CREDENTIALS is not valid JSON: {e}")
+                    raise ValueError("GCP_CREDENTIALS environment variable contains invalid JSON")
 
-                credentials = service_account.Credentials.from_service_account_info(
-                    creds_info
-                )
-                print("Loaded service account from JSON string")
-            else:
-                print(" WARNING: No GCP_CREDENTIALS_PATH or GCP_CREDENTIALS found!")
-
-        # Initialize cloud clients
         if credentials:
             storage_client = storage.Client(credentials=credentials, project=project_id)
             firestore_client = firestore.Client(credentials=credentials, project=project_id)
-            print(f"Connected to Google Cloud project: {storage_client.project}")
+            print(f" Connected to GCP project: {project_id}")
         else:
-            print("No credentials provided. Attempting to use default ADC...")
-            storage_client = storage.Client()
-            firestore_client = firestore.Client()
-            print(f"Using default Application Default Credentials")
+            print("No explicit credentials found. Attempting to use Application Default Credentials...")
+            storage_client = storage.Client(project=project_id)
+            firestore_client = firestore.Client(project=project_id)
+            print(f" Using Application Default Credentials for project: {project_id}")
 
+        # Initialize bucket
         bucket = storage_client.bucket(BUCKET_NAME)
+        print(f"Storage bucket initialized: {BUCKET_NAME}")
+        print(f" Firestore database: {firestore_client.project}")
+        print("=" * 50)
+        print("Google Cloud successfully initialized!")
+        print("=" * 50)
 
-        print(f"Storage bucket: {BUCKET_NAME}")
-        print(f"Firestore project: {firestore_client.project}")
-        print("Google Cloud initialized successfully!")
-
-    except json.JSONDecodeError as e:
-        print(f"GCP_CREDENTIALS is not valid JSON: {e}")
-        raise ValueError("GCP_CREDENTIALS environment variable is not valid JSON")
+    except ValueError as e:
+        print(f"✗ Configuration error: {e}")
+        raise
     except Exception as e:
-        print(f"Error initializing GCP: {e}")
+        print(f"✗ Error initializing GCP: {type(e).__name__}: {e}")
         raise
 
 
 def get_firestore():
+    """Dependency to get Firestore client."""
     if not firestore_client:
-        print("Firestore not initialized! Check your GCP credentials.")
-        raise HTTPException(status_code=500, detail="Firestore not initialized")
+        print("✗ Firestore client not initialized!")
+        raise HTTPException(
+            status_code=500,
+            detail="Database service unavailable. Check GCP credentials."
+        )
     return firestore_client
 
 
 def get_storage_bucket():
+    """Dependency to get Cloud Storage bucket."""
     if not bucket:
-        print("Storage bucket not initialized! Check your GCP credentials.")
-        raise HTTPException(status_code=500, detail="Bucket not initialized")
+        print("✗ Storage bucket not initialized!")
+        raise HTTPException(
+            status_code=500,
+            detail="Storage service unavailable. Check GCP credentials."
+        )
     return bucket
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """Verify JWT token and extract user information."""
     try:
         if not credentials:
             raise HTTPException(status_code=401, detail="No credentials provided")
@@ -123,4 +142,5 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        print(f"Token verification error: {e}")
+        raise HTTPException(status_code=401, detail="Token verification failed")```
