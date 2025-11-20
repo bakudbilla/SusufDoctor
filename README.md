@@ -53,7 +53,7 @@ Click this button to open the notebook on colab: https://colab.research.google.c
 | Backend | FastAPI (Python) |
 | Database | Firestore (Google Cloud) |
 | Storage | Google Cloud Storage |
-| Deployment | Render (API) & Vercel (Frontend) |
+| Deployment | Google cloud RUn & Vercel (Frontend) |
 | Model | AI-based Radiology Report Generator |
 
 ## Prerequisites
