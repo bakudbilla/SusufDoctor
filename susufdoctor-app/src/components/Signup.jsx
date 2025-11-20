@@ -78,7 +78,7 @@ export default function Signup() {
 
   const handleRegister = async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/register/`, {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -116,7 +116,7 @@ export default function Signup() {
 
   async function handleLogin() {
     try {
-      const response = await fetch(`${API_URL}/auth/login/`, {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

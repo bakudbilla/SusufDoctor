@@ -5,7 +5,7 @@ export default function WordCloud({ refreshTrigger }) {
   const [imgUrl, setImgUrl] = useState("");
 
   useEffect(() => {
-    const url = `${API_URL}/analytics/wordcloud?t=${Date.now()}/`;
+    const url = `${API_URL}/analytics/wordcloud?t=${Date.now()}`;
     setImgUrl(url);
   }, [refreshTrigger]);
 

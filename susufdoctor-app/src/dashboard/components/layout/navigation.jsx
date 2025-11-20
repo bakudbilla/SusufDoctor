@@ -26,7 +26,7 @@ export function Navigation({ currentPage, onNavigate }) {
       const storedName = localStorage.getItem("radiologist_name");
 
       try {
-        const response = await fetch(`${API_URL}auth/profile`, {
+        const response = await fetch(`${API_URL}/auth/profile`, {
           headers: {
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json",

@@ -67,7 +67,7 @@ export default function PatientRevisitSystem() {
       setLoadingPatient(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`${API_URL}/patients/${patientId}/`, {
+      const response = await fetch(`${API_URL}/patients/${patientId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

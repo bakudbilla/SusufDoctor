@@ -51,7 +51,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       setLoadingPriorReport(true);
       const token = localStorage.getItem("access_token");
 
-      const response = await fetch(`${API_URL}/patients/${patientId}/visits/`, {
+      const response = await fetch(`${API_URL}/patients/${patientId}/visits`, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -172,179 +172,75 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
     return Object.keys(newErrors).length === 0;
   };
 
-//   const handleGenerateReport = async () => {
-//     if (!validateForm()) return;
-//     setIsGenerating(true);
-//     setApiError(null);
-//     setSubmitStatus(null);
+  const handleGenerateReportWS = async () => {
+    if (!validateForm()) return;
+    setIsGenerating(true);
+    setApiError(null);
+    setSubmitStatus(null);
 
-//     try {
-//       const formDataToSend = new FormData();
-//       formDataToSend.append("xray_image", xrayFile.file);
-      
-//       if (reportFile && reportFile.file && !reportFile.isPrior) {
-//         formDataToSend.append("prior_report", reportFile.file);
-//       }
-      
-//       formDataToSend.append("bmi", formData.bmi);
-//       formDataToSend.append("age", formData.age);
-//       formDataToSend.append("sex", formData.sex);
-//       formDataToSend.append("view_type", formData.xrayView);
-//       formDataToSend.append("patient_name", formData.patientName);
-
-//       const token = localStorage.getItem("access_token");
-//       if (!token) throw new Error("Please login to generate reports");
-
-//       const response = await fetch(`${API_URL}predict/`, {
-//         method: "POST",
-//         headers: { Authorization: `Bearer ${token}` },
-//         body: formDataToSend,
-//       });
-
-//       if (!response.ok) {
-//         const text = await response.text();
-//         console.error("Raw error:", text);
-//         let message = "Unknown API error";
-//         try {
-//           const data = JSON.parse(text);
-//           message =
-//             data.detail?.[0]?.msg ||
-//             data.message ||
-//             JSON.stringify(data.detail || data);
-//         } catch {
-//           message = text;
-//         }
-//         throw new Error(message);
-//       }
-
-//       const result = await response.json();
-//       const pdfUrl = result.data?.generated_report_url;
-//       if (!pdfUrl) throw new Error("No PDF URL found in API response");
-
-//       setPdfUrl(pdfUrl);
-//       setFirestoreId(result.data?.patient_id);
-//       setReportText(result.data?.report_text || "");
-//       setOriginalReportText(result.data?.report_text || "");
-//       setReportGenerated(true);
-//       setSubmitStatus({
-//         type: "success",
-//         message: "Report generated successfully! You can now view, edit, or download the PDF.",
-//       });
-//     } catch (error) {
-//       console.error("Error generating report:", error);
-//       setApiError(error.message);
-//       setSubmitStatus({
-//         type: "error",
-//         message: `Failed to generate report: ${error.message}`,
-//       });
-//     } finally {
-//       setIsGenerating(false);
-//     }
-//   };
-const handleGenerateReportWS = async () => {
-  if (!validateForm()) return;
-
-  setIsGenerating(true);
-  setReportGenerated(false);
-  setReportText("");
-  setOriginalReportText("");
-  setLiveStage("Connecting…");
-
-//   const ws = new WebSocket("ws://localhost:8000/predict/ws");
-const ws = new WebSocket("wss://susufdoctor-production.up.railway.app/predict/ws/");
-  ws.binaryType = "arraybuffer";
-
-  ws.onopen = async () => {
     try {
-      setLiveStage("Uploading X-ray…");
-
-      const arrayBuffer = await xrayFile.file.arrayBuffer();
-      const xrayHex = Array.from(new Uint8Array(arrayBuffer))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
-      let priorHex = null;
+      const formDataToSend = new FormData();
+      formDataToSend.append("xray_image", xrayFile.file);
+      
       if (reportFile && reportFile.file && !reportFile.isPrior) {
-        const pdfBuffer = await reportFile.file.arrayBuffer();
-        priorHex = Array.from(new Uint8Array(pdfBuffer))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
+        formDataToSend.append("prior_report", reportFile.file);
+      }
+      
+      formDataToSend.append("bmi", formData.bmi);
+      formDataToSend.append("age", formData.age);
+      formDataToSend.append("sex", formData.sex);
+      formDataToSend.append("view_type", formData.xrayView);
+      formDataToSend.append("patient_name", formData.patientName);
+
+      const token = localStorage.getItem("access_token");
+      if (!token) throw new Error("Please login to generate reports");
+
+      const response = await fetch(`${API_URL}/predict`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formDataToSend,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("Raw error:", text);
+        let message = "Unknown API error";
+        try {
+          const data = JSON.parse(text);
+          message =
+            data.detail?.[0]?.msg ||
+            data.message ||
+            JSON.stringify(data.detail || data);
+        } catch {
+          message = text;
+        }
+        throw new Error(message);
       }
 
-      ws.send(
-        JSON.stringify({
-          xray_hex: xrayHex,
-          prior_hex: priorHex,
-          patient_info: {
-            bmi: formData.bmi,
-            age: formData.age,
-            sex: formData.sex,
-            view_type: formData.xrayView,
-            patient_name: formData.patientName
-          }
-        })
-      );
-    } catch (err) {
-      console.error("WS send error", err);
+      const result = await response.json();
+      const pdfUrl = result.data?.generated_report_url;
+      if (!pdfUrl) throw new Error("No PDF URL found in API response");
+
+      setPdfUrl(pdfUrl);
+      setFirestoreId(result.data?.patient_id);
+      setReportText(result.data?.report_text || "");
+      setOriginalReportText(result.data?.report_text || "");
+      setReportGenerated(true);
+      setSubmitStatus({
+        type: "success",
+        message: "Report generated successfully! You can now view, edit, or download the PDF.",
+      });
+    } catch (error) {
+      console.error("Error generating report:", error);
+      setApiError(error.message);
+      setSubmitStatus({
+        type: "error",
+        message: `Failed to generate report: ${error.message}`,
+      });
+    } finally {
       setIsGenerating(false);
-      setLiveStage(null);
-      ws.close();
     }
   };
-
-  let accumulated = "";
-
-  ws.onmessage = async (event) => {
-  let data;
-  try {
-    data = typeof event.data === "string" ? JSON.parse(event.data) : {};
-  } catch (err) {
-    console.error("WS parse error", err);
-    return;
-  }
-
-  if (data.stage) {
-    setLiveStage(data.stage);
-  }
-
-  if (data.partial) {
-    accumulated += data.partial + " ";
-    setReportText(accumulated);
-  }
-
-  if (data.done) {
-    const finalReport = data.report || accumulated;
-
-    setReportText(finalReport);
-    setOriginalReportText(finalReport);
-
-    if (data.generated_report_url) setPdfUrl(data.generated_report_url);
-    if (data.patient_id) setFirestoreId(data.patient_id);
-
-    setReportGenerated(true);
-    setIsGenerating(false);
-    setLiveStage(null);
-
-    ws.close();
-    return;
-  }
-
-  
-  if (data.error) {
-    console.error("WS error:", data.error);
-    setIsGenerating(false);
-    setLiveStage(null);
-    ws.close();
-  }
-};
-
-
-  ws.onerror = () => {
-    setIsGenerating(false);
-    setLiveStage(null);
-    alert("WebSocket connection failed");
-  };
-};
 
 
   const handleEditReport = () => {

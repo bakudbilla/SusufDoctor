@@ -28,7 +28,7 @@ export default function FiltersQuickAction() {
       setLoading(true);
       const token = localStorage.getItem("access_token");
       
-      const response = await fetch(`${API_URL}/patients/dashboard/`, {
+      const response = await fetch(`${API_URL}/patients/dashboard`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${token}`,
