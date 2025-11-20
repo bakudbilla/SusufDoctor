@@ -225,7 +225,7 @@ async def upload_profile_picture(
     db: firestore.Client = Depends(get_firestore),
     bucket: storage.Bucket = Depends(get_storage_bucket)
 ):
-    """Upload user profile picture to GCS and save URL to Firestore"""
+    """Upload user profile picture to GCS and save permanent URL to Firestore"""
     try:
         # Validate file type
         if not profile_picture.content_type.startswith('image/'):
@@ -253,17 +253,16 @@ async def upload_profile_picture(
         blob = bucket.blob(destination_path)
         blob.upload_from_string(file_bytes, content_type=profile_picture.content_type)
         
-        # Generate signed URL (valid for 7 days - max allowed by GCS)
-        signed_url = blob.generate_signed_url(
-            version="v4",
-            expiration=timedelta(days=7),
-            method="GET"
-        )
+        # Make the file publicly accessible
+        blob.make_public()
         
-        # Save URL to Firestore
+        # Get permanent public URL
+        public_url = blob.public_url
+        
+        # Save permanent URL to Firestore
         user_ref = db.collection("radiologists").document(user_id)
         user_ref.update({
-            "profile_picture_url": signed_url,
+            "profile_picture_url": public_url,
             "profile_picture_updated_at": datetime.now().isoformat()
         })
         
@@ -271,7 +270,7 @@ async def upload_profile_picture(
             "status": "success",
             "message": "Profile picture uploaded successfully",
             "data": {
-                "profile_picture_url": signed_url
+                "profile_picture_url": public_url
             }
         })
         
