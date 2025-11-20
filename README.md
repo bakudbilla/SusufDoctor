@@ -94,6 +94,7 @@ ALGORITHM=HS256
 
 5. Run the backend server
 uvicorn main:app --reload
+NB: The  backend will be available at: http://127.0.0.1:8000
 
 # Frontend Setup (React + Vite)
 
@@ -126,3 +127,4 @@ npm install
 ```
 npm run dev
 ```
+The  frontend will be available at: http://localhost:5173
