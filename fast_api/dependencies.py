@@ -143,4 +143,4 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
         raise
     except Exception as e:
         print(f"Token verification error: {e}")
-        raise HTTPException(status_code=401, detail="Token verification failed")```
+        raise HTTPException(status_code=401, detail="Token verification failed")
