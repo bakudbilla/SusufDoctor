@@ -1,90 +1,145 @@
-from fastapi import APIRouter
-from google.cloud import firestore
-from fastapi.responses import StreamingResponse
-from wordcloud import WordCloud, STOPWORDS
-from collections import Counter
 import os
-import io
+import json
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from google.cloud import storage, firestore
+from google.oauth2 import service_account
+from auth import decode_token
+from dotenv import load_dotenv
 
-router = APIRouter(prefix="/analytics", tags=["Analytics"])
+load_dotenv()
 
-CUSTOM_STOPS = {
-    "the", "left", "is", "are", "was", "were", "and", "to", "of", "no",
-    "normal", "noted", "there", "mild", "seen", "on", "with",
-    "without", "within", "projection", "heart", "lungs", "lung",
-    "chest", "xray", "image", "impression", "findings", "view",
-    "patient", "study", "exam", "scan", "xrays", "radiograph",
-    "small", "right", "over", "film", "base"
-}
-STOPWORDS_ALL = STOPWORDS.union(CUSTOM_STOPS)
+security = HTTPBearer()
+
+storage_client = None
+firestore_client = None
+bucket = None
+
+BUCKET_NAME = os.getenv("BUCKET_NAME", "susufdoctor-storage")
 
 
-@router.get("/wordcloud")
-async def generate_wordcloud():
-    """Generate a word cloud image from all patient reports."""
+def initialize_gcloud():
+    """
+    Initialize Google Cloud clients.
+    Supports:
+    1. Localhost: GCP_CREDENTIALS_PATH (path to JSON file)
+    2. Render/Production: GCP_CREDENTIALS (JSON string in environment variable)
+    3. Fallback: Application Default Credentials (ADC)
+    """
+    global storage_client, firestore_client, bucket
+
+    credentials = None
+    project_id = os.getenv("GCP_PROJECT_ID")
+
+    if not project_id:
+        raise ValueError("GCP_PROJECT_ID environment variable is required")
+
     try:
-        db = firestore.Client()
+        credentials_path = os.getenv("GCP_CREDENTIALS_PATH")
 
-        # Fetch all report texts from Firestore
-        docs = db.collection("patients").stream()
-        combined_text = [
-            data.get("report_text")
-            for doc in docs
-            if (data := doc.to_dict()) and data.get("report_text")
-        ]
+        if credentials_path:
+            if not os.path.isabs(credentials_path):
+                credentials_path = os.path.join(os.getcwd(), credentials_path)
 
-        # Combine all reports into a single string
-        all_text = " ".join(combined_text).strip() or "no reports yet"
+            if os.path.exists(credentials_path):
+                print(f"✓ Loading GCP credentials from file: {credentials_path}")
+                credentials = service_account.Credentials.from_service_account_file(
+                    credentials_path
+                )
+                print("✓ Service account loaded from file")
+            else:
+                print(f"⚠ Credentials file not found at: {credentials_path}")
 
-        # Generate the word cloud image
-        wc = WordCloud(
-            width=1600,
-            height=800,
-            background_color="white",
-            stopwords=STOPWORDS_ALL,
-            collocations=False
-        ).generate(all_text)
+        if not credentials:
+            creds_json = os.getenv("GCP_CREDENTIALS")
+            if creds_json:
+                print("✓ Loading GCP credentials from environment variable")
+                try:
+                    creds_info = json.loads(creds_json)
 
-        # Save to BytesIO instead of filesystem (Cloud Run compatible)
-        img_io = io.BytesIO()
-        wc.to_file(img_io)
-        img_io.seek(0)
+                    if "private_key" in creds_info:
+                        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
 
-        return StreamingResponse(img_io, media_type="image/png")
-    
+                    credentials = service_account.Credentials.from_service_account_info(
+                        creds_info
+                    )
+                    print("✓ Service account loaded from JSON string")
+                except json.JSONDecodeError as e:
+                    print(f"✗ GCP_CREDENTIALS is not valid JSON: {e}")
+                    raise ValueError("GCP_CREDENTIALS environment variable contains invalid JSON")
+
+        if credentials:
+            storage_client = storage.Client(credentials=credentials, project=project_id)
+            firestore_client = firestore.Client(credentials=credentials, project=project_id)
+            print(f"✓ Connected to GCP project: {project_id}")
+        else:
+            print("⚠ No explicit credentials found. Attempting to use Application Default Credentials...")
+            storage_client = storage.Client(project=project_id)
+            firestore_client = firestore.Client(project=project_id)
+            print(f"✓ Using Application Default Credentials for project: {project_id}")
+
+        # Initialize bucket
+        bucket = storage_client.bucket(BUCKET_NAME)
+        print(f"✓ Storage bucket initialized: {BUCKET_NAME}")
+        print(f"✓ Firestore database: {firestore_client.project}")
+        print("=" * 50)
+        print("Google Cloud successfully initialized!")
+        print("=" * 50)
+
+    except ValueError as e:
+        print(f"✗ Configuration error: {e}")
+        raise
     except Exception as e:
-        return {"error": str(e)}, 500
+        print(f"✗ Error initializing GCP: {type(e).__name__}: {e}")
+        raise
 
 
-@router.get("/wordcloudtext")
-async def get_wordcloud_text():
-    """Return word frequencies for animated word cloud on frontend."""
+def get_firestore():
+    """Dependency to get Firestore client."""
+    if not firestore_client:
+        print("✗ Firestore client not initialized!")
+        raise HTTPException(
+            status_code=500,
+            detail="Database service unavailable. Check GCP credentials."
+        )
+    return firestore_client
+
+
+def get_storage_bucket():
+    """Dependency to get Cloud Storage bucket."""
+    if not bucket:
+        print("✗ Storage bucket not initialized!")
+        raise HTTPException(
+            status_code=500,
+            detail="Storage service unavailable. Check GCP credentials."
+        )
+    return bucket
+
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """Verify JWT token and extract user information."""
     try:
-        db = firestore.Client()
-        docs = db.collection("patients").stream()
+        if not credentials:
+            raise HTTPException(status_code=401, detail="No credentials provided")
 
-        # Gather report text data
-        combined_text = []
-        for doc in docs:
-            data = doc.to_dict()
-            report = data.get("report_text")
-            if report:
-                combined_text.append(report)
+        token = credentials.credentials
+        payload = decode_token(token)
 
-        all_words = " ".join(combined_text).split()
+        if payload is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-        # Count word frequencies
-        freq = Counter(all_words)
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
 
-        # Filter out stopwords and format for frontend
-        words = [
-            {"text": w, "value": c}
-            for w, c in freq.items()
-            if w.lower() not in STOPWORDS_ALL
-        ]
+        return {
+            "user_id": user_id,
+            "email": payload.get("email"),
+            "full_name": payload.get("full_name")
+        }
 
-        # Limit to top 150 words for performance
-        return {"words": words[:150]}
-    
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}, 500
+        print(f"Token verification error: {e}")
+        raise HTTPException(status_code=401, detail="Token verification failed")```
