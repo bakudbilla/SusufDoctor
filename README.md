@@ -15,7 +15,7 @@ SusufDoctor is an intelligent web application that replicates the radiologist’
 
 - Susuf Doctor Web App: https://susuf-doctor.vercel.app/
   
-- Susuf Doctor backend(Fast api): https://susufdoctor-model-api.onrender.com
+- Susuf Doctor backend(Fast api):https://susufdoctorbackend-100056520598.europe-west1.run.app/docs
 
 
 ## Repository  
