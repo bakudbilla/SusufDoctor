@@ -109,7 +109,6 @@ export default function Testimonials() {
       </div>
 
         <CTA />
-        {/* <Stats /> */}
     </section>
   );
 }

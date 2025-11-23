@@ -390,3 +390,9 @@
     transform: scale(1);
   }
 }
+
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+

@@ -1,12 +1,14 @@
-/* eslint-disable no-useless-catch */
+/* eslint-disable no-useless-catch */ 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import whatspecial from "../assets/whatspecial.png";
 import radio from "../assets/radio.png";
-import Loader from "../utils/Loader";
+import { LoadingSpinner } from "../utils/LoadingSpinner";
 import logo2 from "../assets/logo2.png";
+import PrivacyPolicies from "../utils/PrivacyPolicies";
 import { API_URL } from '../utils/constant';
+
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -26,6 +28,8 @@ export default function Signup() {
   const [errorMsg, setErrorMsg] = useState("");
   const [success, setSuccess] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
 
   function handleUserInput(e) {
@@ -49,6 +53,9 @@ export default function Signup() {
         newErrors.license_number = "License number is required";
       } else if (userInput.license_number.trim().length < 5) {
         newErrors.license_number = "Enter a valid license number";
+      }
+      if (!privacyAccepted) {
+        newErrors.privacy = "You must accept the privacy policy to create an account";
       }
     }
 
@@ -159,7 +166,7 @@ export default function Signup() {
   }
 
   function handleSubmit(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setHasSubmitted(true);
     setErrorMsg("");
 
@@ -193,8 +200,54 @@ export default function Signup() {
               });
               setHasSubmitted(false);
               setErrors({});
+              setPrivacyAccepted(false);
             }, 2000);
           }
+        })
+        .catch((error) => {
+          setErrorMsg(error.message || "An error occurred. Please try again.");
+          setLoading(false);
+        });
+    }
+  }
+
+  function handlePrivacyAccept() {
+    setPrivacyAccepted(true);
+    setShowPrivacyModal(false);
+    setErrors((prev) => ({ ...prev, privacy: "" }));
+    
+    setHasSubmitted(true);
+    setErrorMsg("");
+
+    const foundErrors = validateInput();
+    
+    const otherErrors = { ...foundErrors };
+    delete otherErrors.privacy;
+
+    setErrors(otherErrors);
+
+    if (Object.keys(otherErrors).length === 0) {
+      setLoading(true);
+
+      handleRegister()
+        .then(() => {
+          setSuccess(true);
+          setLoading(false);
+
+          setTimeout(() => {
+            setSuccess(false);
+            setIsLogin(true);
+            setUserInput({
+              first_name: "",
+              last_name: "",
+              email: userInput.email,
+              password: "",
+              license_number: "",
+            });
+            setHasSubmitted(false);
+            setErrors({});
+            setPrivacyAccepted(false);
+          }, 2000);
         })
         .catch((error) => {
           setErrorMsg(error.message || "An error occurred. Please try again.");
@@ -206,24 +259,34 @@ export default function Signup() {
   return (
     <>
       {loading && (
-      <Loader text={isLogin ? 'Logging in....' : "Creating an account..."} />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <LoadingSpinner messageColor="text-white" message={isLogin ? 'Logging in....' : "Creating an account..."} />
+        </div>
       )}
 
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-cyan-50 via-teal-50 to-cyan-100 px-4 py-8">
-        <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl grid grid-cols-1 md:grid-cols-2 overflow-hidden">
-          <div className="p-8 md:p-12 flex flex-col relative">
-            <div className="absolute top-2 left-2">
-              <img src={logo2} alt="Logo" className="h-14 w-auto" />
+      <PrivacyPolicies
+        isOpen={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        onAccept={handlePrivacyAccept}
+        onDecline={() => setShowPrivacyModal(false)}
+        showAcceptBtn={true}
+        showDeclineBtn={true}
+        isLoading={loading}
+      />
+
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-cyan-50 via-teal-50 to-cyan-100 px-3 sm:px-4 py-4 sm:py-8">
+        <div className="w-full max-w-6xl bg-white rounded-2xl sm:rounded-3xl shadow-xl sm:shadow-2xl grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
+          <div className="p-4 sm:p-8 md:p-10 lg:p-12 flex flex-col relative">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3">
+              <img src={logo2} alt="Logo" className="h-10 sm:h-12 md:h-14 w-auto" />
             </div>
-            <div className="mb-8 mt-8">
-              <div className="flex items-center justify-between mb-8">
-                <h1 className="text-4xl font-bold text-blue-500">SusufDoctor</h1>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`text-sm font-medium ${
-                      !isLogin ? "text-gray-900" : "text-gray-400"
-                    }`}
-                  >
+
+            <div className="mb-6 sm:mb-8 mt-12 sm:mt-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-500">SusufDoctor</h1>
+                
+                <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                  <span className={`text-xs sm:text-sm font-medium ${!isLogin ? "text-gray-900" : "text-gray-400"}`}>
                     Sign Up
                   </span>
                   <button
@@ -233,35 +296,29 @@ export default function Signup() {
                       setHasSubmitted(false);
                       setErrorMsg("");
                     }}
-                    className={`relative w-14 h-7 rounded-full cursor-pointer transition-colors ${
+                    className={`relative w-12 sm:w-14 h-6 sm:h-7 rounded-full cursor-pointer transition-colors ${
                       isLogin ? "bg-blue-500" : "bg-gray-300"
                     }`}
                   >
                     <div
-                      className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-300 ${
-                        isLogin ? "translate-x-7" : "translate-x-0"
+                      className={`absolute top-0.5 left-0.5 w-5 sm:w-6 h-5 sm:h-6 bg-white rounded-full shadow-md transition-transform duration-300 ${
+                        isLogin ? "translate-x-6 sm:translate-x-7" : "translate-x-0"
                       }`}
                     ></div>
                   </button>
-                  <span
-                    className={`text-sm font-medium ${
-                      isLogin ? "text-gray-900" : "text-gray-400"
-                    }`}
-                  >
+                  <span className={`text-xs sm:text-sm font-medium ${isLogin ? "text-gray-900" : "text-gray-400"}`}>
                     Login
                   </span>
                 </div>
               </div>
 
-              <p className="text-gray-600 text-sm">
-                {isLogin
-                  ? "Welcome back, Radiologist"
-                  : "Create your radiologist account"}
+              <p className="text-xs sm:text-sm text-gray-600">
+                {isLogin ? "Welcome back, Radiologist" : "Create your radiologist account"}
               </p>
             </div>
 
             {/* Form Fields */}
-            <div className={`flex-1 flex flex-col ${isLogin ? "space-y-5" : "space-y-4"}`}>
+            <div className={`flex-1 flex flex-col ${isLogin ? "space-y-3 sm:space-y-5" : "space-y-3 sm:space-y-4"}`}>
               {!isLogin && (
                 <>
                   <div>
@@ -271,7 +328,7 @@ export default function Signup() {
                       placeholder="First Name"
                       value={userInput.first_name}
                       onChange={handleUserInput}
-                      className={`w-full px-4 py-3 bg-gray-50 border ${
+                      className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-gray-50 border ${
                         errors.first_name ? "border-red-500" : "border-gray-200"
                       } rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition`}
                     />
@@ -287,7 +344,7 @@ export default function Signup() {
                       placeholder="Last Name"
                       value={userInput.last_name}
                       onChange={handleUserInput}
-                      className={`w-full px-4 py-3 bg-gray-50 border ${
+                      className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-gray-50 border ${
                         errors.last_name ? "border-red-500" : "border-gray-200"
                       } rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition`}
                     />
@@ -305,7 +362,7 @@ export default function Signup() {
                   placeholder="Email Address"
                   value={userInput.email}
                   onChange={handleUserInput}
-                  className={`w-full px-4 py-3 bg-gray-50 border ${
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-gray-50 border ${
                     errors.email ? "border-red-500" : "border-gray-200"
                   } rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition`}
                 />
@@ -319,16 +376,16 @@ export default function Signup() {
                   placeholder="Password"
                   value={userInput.password}
                   onChange={handleUserInput}
-                  className={`w-full px-4 py-3 bg-gray-50 border ${
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-gray-50 border ${
                     errors.password ? "border-red-500" : "border-gray-200"
-                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12`}
+                  } rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-10 sm:pr-12`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPassword ? <EyeOff size={18} className="sm:w-5 sm:h-5" /> : <Eye size={18} className="sm:w-5 sm:h-5" />}
                 </button>
                 {errors.password && (
                   <p className="text-xs text-red-500 mt-1">{errors.password}</p>
@@ -343,7 +400,7 @@ export default function Signup() {
                     placeholder="Medical License Number"
                     value={userInput.license_number}
                     onChange={handleUserInput}
-                    className={`w-full px-4 py-3 bg-gray-50 border ${
+                    className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm bg-gray-50 border ${
                       errors.license_number ? "border-red-500" : "border-gray-200"
                     } rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition`}
                   />
@@ -353,8 +410,42 @@ export default function Signup() {
                 </div>
               )}
 
+              {!isLogin && (
+                <div className="flex items-start gap-2 sm:gap-3 mt-3 sm:mt-4">
+                  <input
+                    type="checkbox"
+                    id="privacy"
+                    checked={privacyAccepted}
+                    onChange={() => {
+                      if (!privacyAccepted) {
+                        setShowPrivacyModal(true);
+                      } else {
+                        setPrivacyAccepted(false);
+                      }
+                    }}
+                    className="w-4 sm:w-5 h-4 sm:h-5 mt-0.5 text-blue-500 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <label htmlFor="privacy" className="text-xs sm:text-sm text-gray-700 cursor-pointer">
+                    I have read and agree to the{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShowPrivacyModal(true)}
+                      className="text-blue-500 hover:underline font-semibold"
+                    >
+                      Privacy Policy & Terms
+                    </button>
+                  </label>
+                </div>
+              )}
+
+              {errors.privacy && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm">
+                  {errors.privacy}
+                </div>
+              )}
+
               {errorMsg && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded-lg text-xs sm:text-sm">
                   {errorMsg}
                 </div>
               )}
@@ -362,12 +453,12 @@ export default function Signup() {
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-[0.98]"
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 sm:py-3 text-sm sm:text-base rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-[0.98]"
               >
                 {isLogin ? "Login" : "Create Account"}
               </button>
 
-              <p className="text-center text-sm text-gray-600 mt-2">
+              <p className="text-center text-xs sm:text-sm text-gray-600 mt-2">
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
                 <button
                   type="button"
@@ -385,16 +476,17 @@ export default function Signup() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center justify-center bg-linear-to-br from-blue-500 to-blue-600 p-12">
-            <div className="w-full max-w-md">
+          {/* Right Section - Image */}
+          <div className="hidden lg:flex items-center justify-center bg-linear-to-br from-blue-500 to-blue-600 p-6 sm:p-8 md:p-10 lg:p-12">
+            <div className="w-full max-w-sm md:max-w-md">
               <img
                 src={isLogin ? whatspecial : radio}
                 alt="Medical professionals"
                 className={`w-full h-auto drop-shadow-2xl ${!isLogin && "animate-float"}`}
               />
-              <div className="mt-8 text-center text-white">
-                <h2 className="text-2xl font-bold mb-2">AI-Powered Radiology Reports</h2>
-                <p className="text-blue-100">Generate accurate medical reports in seconds</p>
+              <div className="mt-6 sm:mt-8 text-center text-white">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-1 sm:mb-2">AI-Powered Radiology Reports</h2>
+                <p className="text-sm sm:text-base text-blue-100">Generate accurate medical reports in seconds</p>
               </div>
             </div>
           </div>

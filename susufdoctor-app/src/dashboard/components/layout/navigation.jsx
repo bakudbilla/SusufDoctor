@@ -39,6 +39,7 @@ export function Navigation({ currentPage, onNavigate }) {
           const fullName = user.full_name || storedName || "Dr. Unknown";
           setRadiologistName(fullName);
           localStorage.setItem("radiologist_name", fullName);
+          console.log(user)
           
           if (user.profile_picture_url) {
             setProfilePicture(user.profile_picture_url);

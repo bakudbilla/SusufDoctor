@@ -19,7 +19,6 @@ export function Dashboard() {
   const [loggingOut, setLoggingOut] = useState(false);
   const navigate = useNavigate('');
 
-  // Trigger for Word Cloud auto-refresh
   const [refreshWordCloud, setRefreshWordCloud] = useState(0);
 
   useEffect(() => {
@@ -74,7 +73,7 @@ export function Dashboard() {
           const createdDate = p.latest_visit?.split("T")[0];
           return createdDate === today;
         }).length;
-console.log(totalScans)
+
         setStats({
           totalScans,
           completedToday,

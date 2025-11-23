@@ -1,11 +1,12 @@
 import checkmark from "../assets/checkmark.png";
+import image from '../assets/whatspecial.png'
 
 export default function WhatsSpecial() {
   const features = [
     "Reports are generated instantly. The application eliminates manual dictation and typing errors.",
-    "Diagnostic clarity is enhanced. The platform includes visual tools like Gradcam for better visualization.",
+    "Word cloud feature that helps radiologists quickly identify the most common conditions and patterns appearing across patient reports.",
     "Patient safety is improved. Critical findings are automatically flagged for immediate attention.",
-    "Using RLHF, the reports are continuously refined to match the standards and preferences of expert radiologists."
+    "Longitudinal analysis helps track changes between scans to identify disease progression across different patient visits"
   ];
 
   return (
@@ -16,7 +17,7 @@ export default function WhatsSpecial() {
 
           <div className="hidden lg:block lg:absolute lg:-left-44 lg:top-1/2 lg:-translate-y-1/2 w-full lg:w-[480px]">
             <img
-              src="/src/assets/whatspecial.png"
+              src={image}
               alt="Doctors discussing"
               className="w-full h-[430px] object-cover shadow-xl"
             />

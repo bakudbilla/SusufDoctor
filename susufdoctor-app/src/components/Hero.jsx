@@ -1,15 +1,15 @@
 import { motion } from 'framer-motion';
 import pattern from '../assets/Shape.png';
 import CompareSection from './CompareSection';
-import  Homeimage from '../assets/xray4.png'
+import  Homeimage from '../assets/xray4.png';
+import { useNavigate } from 'react-router-dom';
 
 
 export default function Hero() {
+  const navigate = useNavigate('')
+
   return (
-    <section
-      id="home"
-      className="relative bg-[#DFFBFA] px-4 sm:px-6 pt-44 pb-20 overflow-hidden"
-    >
+    <section id="home" className="relative bg-[#DFFBFA] px-4 sm:px-6 pt-44 pb-20 overflow-hidden" >
       <img
         src={pattern}
         alt="Pattern"
@@ -41,8 +41,10 @@ export default function Hero() {
             Deliver structured, accurate reports instantly, allowing you to focus immediately on diagnosis and patient outcomes.
           </p>
 
-          <button className="bg-blue-500 cursor-pointer text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-blue-600 transition flex items-center justify-center gap-2 mx-auto md:mx-0">
-            Watch Demo →
+          <button 
+            onClick={()=>navigate('/signup')}
+            className="bg-blue-500 cursor-pointer text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold hover:bg-blue-600 transition flex items-center justify-center gap-2 mx-auto md:mx-0">
+            Watch Demo {'→'}
           </button>
         </div>
 

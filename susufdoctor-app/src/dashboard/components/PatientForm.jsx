@@ -1,6 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Upload, X, FileImage, CheckCircle2, AlertCircle, File, Download, Edit2, Save, Eye, Loader2 } from "lucide-react";
+import { Download, Eye, Loader2 } from "lucide-react";
 import { API_URL } from '../../utils/constant'
+import PatientDetails from './layout/PatientDetails';
+import FileUploadSection from './layout/FileUploadSection';
+import ReportSection from './layout/ReportSection';
 
 export default function PatientForm({ mode, selectedPatient, onBack, initialFormData = null, onFormDataChange, onImageUpload, onReportUpload, uploadedImage, uploadedReport }) {
   const [formData, setFormData] = useState(
@@ -125,7 +128,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       file,
     });
     
-    // Call parent's onImageUpload handler
     if (onImageUpload) {
       onImageUpload(file);
     }
@@ -152,7 +154,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       isPrior: false,
     });
     
-    // Call parent's onReportUpload handler
     if (onReportUpload) {
       onReportUpload(file);
     }
@@ -195,7 +196,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
       const token = localStorage.getItem("access_token");
       if (!token) throw new Error("Please login to generate reports");
 
-      const response = await fetch(`${API_URL}/predict`, {
+      const response = await fetch(`${API_URL}/predict/`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formDataToSend,
@@ -242,7 +243,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
     }
   };
 
-
   const handleEditReport = () => {
     setIsEditMode(true);
   };
@@ -252,7 +252,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
     try {
       const token = localStorage.getItem("access_token");
       
-      // Create a FormData object for the edit request
       const formDataToSend = new FormData();
       formDataToSend.append("report_text", reportText);
       formDataToSend.append("firestore_id", firestoreId);
@@ -285,7 +284,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
 
       const result = await response.json();
       
-      // Update the state with the new PDF URL and report text
       setOriginalReportText(reportText);
       setIsEditMode(false);
       setPdfUrl(result.data?.generated_report_url);
@@ -311,7 +309,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
     try {
       const token = localStorage.getItem("access_token");
       
-      // Create a FormData object for the edit request
       const formDataToSend = new FormData();
       formDataToSend.append("report_text", reportText);
       formDataToSend.append("firestore_id", firestoreId);
@@ -344,7 +341,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
 
       const result = await response.json();
       
-      // Update the state with the new PDF URL and report text
       setOriginalReportText(reportText);
       setIsEditMode(false);
       setPdfUrl(result.data?.generated_report_url);
@@ -354,7 +350,6 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
         message: "Report saved! Downloading updated PDF...",
       });
 
-      // Download the new PDF
       setTimeout(() => {
         handleDownloadReport();
       }, 500);
@@ -391,7 +386,7 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-blue-50 p-6">
       <div className="max-w-3xl mx-auto">
         <button
           onClick={onBack}
@@ -405,336 +400,61 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
             {mode === "new" ? "New Patient Registration" : "Patient Visit Update"}
           </h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Patient Name *</label>
-              <input
-                type="text"
-                placeholder="Enter patient name"
-                value={formData.patientName}
-                onChange={(e) => handleChange("patientName", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              {errors.patientName && <p className="text-xs text-red-500 mt-1">{errors.patientName}</p>}
-            </div>
+          <PatientDetails 
+            formData={formData}
+            errors={errors}
+            handleChange={handleChange}
+          />
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Age *</label>
-              <input
-                type="number"
-                value={formData.age}
-                onChange={(e) => handleChange("age", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              {errors.age && <p className="text-xs text-red-500 mt-1">{errors.age}</p>}
-            </div>
+          <FileUploadSection
+            mode={mode}
+            xrayFile={xrayFile}
+            reportFile={reportFile}
+            xrayDragActive={xrayDragActive}
+            reportDragActive={reportDragActive}
+            loadingPriorReport={loadingPriorReport}
+            errors={errors}
+            uploadedImage={uploadedImage}
+            uploadedReport={uploadedReport}
+            handleXrayDrag={handleXrayDrag}
+            handleXrayDrop={handleXrayDrop}
+            handleXrayFiles={handleXrayFiles}
+            handleReportFiles={handleReportFiles}
+            xrayFileInputRef={xrayFileInputRef}
+            reportFileInputRef={reportFileInputRef}
+            setXrayFile={setXrayFile}
+            setReportFile={setReportFile}
+          />
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700">BMI *</label>
-              <input
-                type="number"
-                step="0.1"
-                value={formData.bmi}
-                onChange={(e) => handleChange("bmi", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              {errors.bmi && <p className="text-xs text-red-500 mt-1">{errors.bmi}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Sex *</label>
-              <select
-                value={formData.sex}
-                onChange={(e) => handleChange("sex", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select sex</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-              {errors.sex && <p className="text-xs text-red-500 mt-1">{errors.sex}</p>}
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700">X-ray View *</label>
-              <select
-                value={formData.xrayView}
-                onChange={(e) => handleChange("xrayView", e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select view</option>
-                <option value="Lateral view">Lateral view</option>
-                <option value="Frontal view">Frontal view</option>
-              </select>
-              {errors.xrayView && <p className="text-xs text-red-500 mt-1">{errors.xrayView}</p>}
-            </div>
-          </div>
-
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4">Upload X-ray Image</h3>
-            <div
-              className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                xrayDragActive ? "border-blue-400 bg-blue-50" : "border-slate-300"
-              }`}
-              onDragEnter={handleXrayDrag}
-              onDragLeave={handleXrayDrag}
-              onDragOver={handleXrayDrag}
-              onDrop={handleXrayDrop}
-              onClick={() => xrayFileInputRef.current?.click()}
-            >
-              {!xrayFile ? (
-                <>
-                  <Upload className="h-14 w-14 mx-auto text-slate-400 mb-3" />
-                  <p className="text-slate-600">
-                    Drag & drop or <span className="text-blue-500 font-semibold">browse</span>
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Supports DICOM, PNG, or JPEG formats
-                  </p>
-                  {errors.xrayFile && (
-                    <p className="text-xs text-red-500 mt-2">{errors.xrayFile}</p>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center justify-center gap-4">
-                  <FileImage className="h-14 w-14 text-blue-500" />
-                  <div className="text-left">
-                    <p className="font-medium">{xrayFile.name}</p>
-                    <p className="text-xs text-emerald-500">✓ Ready for analysis</p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setXrayFile(null);
-                    }}
-                    className="p-2 hover:bg-slate-100 rounded-lg"
-                  >
-                    <X className="h-5 w-5 text-red-400" />
-                  </button>
-                </div>
-              )}
-              <input
-                ref={xrayFileInputRef}
-                type="file"
-                className="hidden"
-                accept=".dcm,.dicom,image/png,image/jpeg,image/jpg"
-                onChange={(e) => e.target.files && handleXrayFiles(e.target.files)}
-              />
-            </div>
-
-            {uploadedImage && (
-              <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
-                <p className="text-sm font-medium text-slate-700 mb-3">Image Preview</p>
-                <img
-                  src={uploadedImage.preview}
-                  alt="X-ray preview"
-                  className="max-h-64 rounded-lg mx-auto"
-                />
-              </div>
-            )}
-          </div>
-{/* {uploadedImage && (
-  <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
-    <p className="text-sm font-medium text-slate-700 mb-3">Image Preview</p>
-    <img
-      src={uploadedImage.preview}
-      alt="X-ray preview"
-      className="max-h-64 rounded-lg mx-auto"
-    />
-  </div>
-)} */}
-
-
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4">
-              {mode === "update" ? "Prior Report from Latest Visit" : "Reference Report (Optional)"}
-            </h3>
-            
-            {mode === "update" ? (
-              <>
-                {loadingPriorReport ? (
-                  <div className="flex items-center justify-center p-8 bg-slate-50 rounded-xl">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-500 mr-2" />
-                    <span>Loading prior report...</span>
-                  </div>
-                ) : reportFile && reportFile.isPrior ? (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        <div>
-                          <p className="font-medium text-green-900">{reportFile.name}</p>
-                          <p className="text-xs text-green-700">Automatically loaded from patient records</p>
-                        </div>
-                      </div>
-                      <a
-                        href={reportFile.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline text-sm font-medium"
-                      >
-                        View
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-slate-500 text-sm">No prior reports found for this patient</p>
-                )}
-              </>
-            ) : (
-              <div
-                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                  reportDragActive ? "border-purple-400 bg-purple-50" : "border-slate-300"
-                }`}
-                onClick={() => reportFileInputRef.current?.click()}
-              >
-                {!reportFile ? (
-                  <>
-                    <Upload className="h-14 w-14 mx-auto text-slate-400 mb-3" />
-                    <p className="text-slate-600">
-                      Drag & drop or <span className="text-purple-500 font-semibold">browse</span>
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">PDF format only</p>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center gap-4">
-                    <File className="h-14 w-14 text-purple-500" />
-                    <div className="text-left">
-                      <p className="font-medium">{reportFile.name}</p>
-                      <p className="text-xs text-emerald-500">Ready to include</p>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setReportFile(null);
-                      }}
-                      className="p-2 hover:bg-slate-100 rounded-lg"
-                    >
-                      <X className="h-5 w-5 text-red-400" />
-                    </button>
-                  </div>
-                )}
-                <input
-                  ref={reportFileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept="application/pdf"
-                  onChange={(e) => e.target.files && handleReportFiles(e.target.files)}
-                />
-              </div>
-            )}
-
-            {uploadedReport && (
-              <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
-                <p className="text-sm font-medium text-slate-700 mb-3">Report Preview</p>
-                <div className="bg-white rounded-lg p-4 max-h-64 overflow-auto border border-slate-200">
-                  <iframe
-                    src={uploadedReport.preview}
-                    className="w-full h-64 rounded"
-                    title="PDF preview"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
           {liveStage && (
-  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-    <p className="text-blue-700 text-sm font-medium animate-pulse">
-      {liveStage}
-    </p>
-  </div>
-)}
-{reportGenerated && (
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-slate-700">Generated Report</h3>
-                {!isEditMode && (
-                  <button
-                    onClick={handleEditReport}
-                    className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit Report
-                  </button>
-                )}
-              </div>
-              
-              {isEditMode ? (
-                <div className="space-y-4">
-                  <textarea
-                    value={reportText}
-                    onChange={(e) => setReportText(e.target.value)}
-                    className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    placeholder="Edit the report text here..."
-                  />
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleSaveChanges}
-                      disabled={isSaving}
-                      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4" />
-                          Save Changes
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleSaveAndDownload}
-                      disabled={isSaving}
-                      className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                    >
-                      <Download className="h-4 w-4" />
-                      Save & Download
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg whitespace-pre-wrap text-sm max-h-64 overflow-y-auto">
-                  {reportText}
-                </div>
-              )}
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-blue-700 text-sm font-medium animate-pulse">
+                {liveStage}
+              </p>
             </div>
           )}
 
-          {submitStatus && (
-            <div
-              className={`mt-6 p-4 rounded-lg border ${
-                submitStatus.type === "success"
-                  ? "bg-green-50 border-green-200 text-green-700"
-                  : "bg-red-50 border-red-200 text-red-700"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                {submitStatus.type === "success" ? (
-                  <CheckCircle2 className="h-5 w-5" />
-                ) : (
-                  <AlertCircle className="h-5 w-5" />
-                )}
-                <p className="text-sm">{submitStatus.message}</p>
-              </div>
-            </div>
-          )}
+          <ReportSection
+            reportGenerated={reportGenerated}
+            isEditMode={isEditMode}
+            reportText={reportText}
+            setReportText={setReportText}
+            isSaving={isSaving}
+            submitStatus={submitStatus}
+            handleEditReport={handleEditReport}
+            handleSaveChanges={handleSaveChanges}
+            handleSaveAndDownload={handleSaveAndDownload}
+            handleCancelEdit={handleCancelEdit}
+            handleViewReport={handleViewReport}
+            handleDownloadReport={handleDownloadReport}
+          />
 
           <div className="flex gap-4 justify-center pt-8">
             {!reportGenerated ? (
               <button
                 onClick={handleGenerateReportWS}
-
                 disabled={isGenerating}
-                className="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transform transition-all disabled:opacity-50 shadow-lg"
+                className="flex items-center gap-2 px-8 py-3 cursor-pointer rounded-lg font-semibold text-white bg-linear-to-r from-blue-500 to-blue-600 hover:scale-105 transform transition-all disabled:opacity-50 shadow-lg"
               >
                 {isGenerating ? (
                   <>
@@ -749,14 +469,14 @@ export default function PatientForm({ mode, selectedPatient, onBack, initialForm
               <>
                 <button
                   onClick={handleViewReport}
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 hover:scale-105 transform transition-all shadow-lg"
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg cursor-pointer font-semibold text-white bg-linear-to-r from-green-500 to-green-600 hover:scale-105 transform transition-all shadow-lg"
                 >
                   <Eye className="h-4 w-4" />
                   View PDF
                 </button>
                 <button
                   onClick={handleDownloadReport}
-                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:scale-105 transform transition-all shadow-lg"
+                  className="flex items-center gap-2 px-6 py-3 cursor-pointer rounded-lg font-semibold text-white bg-linear-to-r from-blue-500 to-blue-600 hover:scale-105 transform transition-all shadow-lg"
                 >
                   <Download className="h-4 w-4" />
                   Download PDF

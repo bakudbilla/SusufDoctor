@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { motion } from "framer-motion";
 import { SlideLeft } from "../utils/animations";
 import { services } from '../utils/constant';
@@ -28,7 +29,7 @@ export default function Services() {
                   <img
                     src={service.img}
                     alt={service.title}
-                    className="w-20 h-20 object-contain"
+                    className="w-30 h-30 object-contain"
                   />
                 </div>
                 <h3 className="text-lg font-semibold text-blue-900 mb-3">
