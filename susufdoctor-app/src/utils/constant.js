@@ -5,7 +5,7 @@ import patient from '../assets/patient_analysis.jpeg';
 
 
 
-export const API_URL= 'https://susufdoctorbackend-v3s2btpcqa-ew.a.run.app';
+export const API_URL= 'https://susufdoctorbackend-100056520598.europe-west1.run.app';
 // export const API_URL = "http://localhost:8000";
 // export const API_URL = 'https://susufdoctor-production.up.railway.app'
 
