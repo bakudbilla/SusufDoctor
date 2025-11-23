@@ -229,3 +229,121 @@ async def update_report(
     except Exception as e:
         print(f"Error updating report: {str(e)}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+    
+    
+    
+# NEW ROUTES FOR ADMIN 
+@router.get("/admin/with-radiologist")
+async def get_patients_with_radiologist(
+    current_user: dict = Depends(verify_token),
+    db: firestore.Client = Depends(get_firestore)
+):
+    """Get all unique patients with radiologist information"""
+    try:
+        docs = db.collection("patients").stream()
+        patients_dict = {}
+        
+        # Group documents by patient_id and aggregate data
+        for doc in docs:
+            data = doc.to_dict()
+            patient_id = data.get("patient_id")
+            
+            if not patient_id:
+                continue
+            
+            # Initialize patient if first visit
+            if patient_id not in patients_dict:
+                patients_dict[patient_id] = {
+                    "patient_id": patient_id,
+                    "patient_name": data.get("patient_name"),
+                    "age": data.get("age"),
+                    "sex": data.get("sex"),
+                    "bmi": data.get("bmi"),
+                    "latest_visit": data.get("created_at"),
+                    "visit_count": 0,
+                    "radiologist_id": data.get("radiologist_id"),
+                    "radiologist_name": data.get("radiologist_name"),
+                    "radiologist_email": data.get("radiologist_email")
+                }
+            
+            # Update latest_visit if this one is newer
+            current_visit = data.get("created_at")
+            if current_visit:
+                if not patients_dict[patient_id]["latest_visit"] or current_visit > patients_dict[patient_id]["latest_visit"]:
+                    patients_dict[patient_id]["latest_visit"] = current_visit
+            
+            # Increment visit count for each document (each document = 1 visit/scan)
+            patients_dict[patient_id]["visit_count"] += 1
+        
+        patients = list(patients_dict.values())
+        
+        print(f"Retrieved {len(patients)} unique patients with radiologist info")
+        print(f"Sample patient data: {patients[0] if patients else 'No patients'}")
+        
+        return JSONResponse({
+            "status": "success",
+            "data": patients
+        })
+    
+    except Exception as e:
+        print(f"Error fetching patients with radiologist: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+@router.get("/admin/radiologist/{radiologist_id}")
+async def get_patients_by_radiologist(
+    radiologist_id: str,
+    current_user: dict = Depends(verify_token),
+    db: firestore.Client = Depends(get_firestore)
+):
+    """Get all unique patients for a specific radiologist"""
+    try:
+        docs = db.collection("patients").where("radiologist_id", "==", radiologist_id).stream()
+        patients_dict = {}
+        
+        # Group documents by patient_id and aggregate data
+        for doc in docs:
+            data = doc.to_dict()
+            patient_id = data.get("patient_id")
+            
+            if not patient_id:
+                continue
+            
+            # Initialize patient if first visit
+            if patient_id not in patients_dict:
+                patients_dict[patient_id] = {
+                    "patient_id": patient_id,
+                    "patient_name": data.get("patient_name"),
+                    "age": data.get("age"),
+                    "sex": data.get("sex"),
+                    "bmi": data.get("bmi"),
+                    "latest_visit": data.get("created_at"),
+                    "visit_count": 0,
+                    "radiologist_id": data.get("radiologist_id"),
+                    "radiologist_name": data.get("radiologist_name"),
+                    "radiologist_email": data.get("radiologist_email")
+                }
+            
+            # Update latest_visit if this one is newer
+            current_visit = data.get("created_at")
+            if current_visit:
+                if not patients_dict[patient_id]["latest_visit"] or current_visit > patients_dict[patient_id]["latest_visit"]:
+                    patients_dict[patient_id]["latest_visit"] = current_visit
+            
+            # Increment visit count for each document
+            patients_dict[patient_id]["visit_count"] += 1
+        
+        patients = list(patients_dict.values())
+        
+        print(f"Retrieved {len(patients)} unique patients for radiologist {radiologist_id}")
+        
+        return JSONResponse({
+            "status": "success",
+            "data": patients
+        })
+    
+    except Exception as e:
+        print(f"Error fetching patients for radiologist: {str(e)}")
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)

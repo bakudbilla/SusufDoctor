@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 from dependencies import initialize_gcloud
-from routers import auth_routes, predict_routes, patient_routes,analytics_routes
-
-
+from routers import auth_routes, predict_routes, patient_routes,analytics_routes,admin_routes
 
 
 # Load environment variables first
@@ -70,13 +68,13 @@ async def startup_event():
         print("ML model loaded and cached successfully")
     except Exception as e:
         print(f"Model pre-load warning: {e}")
-        
 
-# app.include_router(admin_routes.router, tags=["Admin"])
+app.include_router(admin_routes.router, tags=["Admin"])
 app.include_router(auth_routes.router, tags=["Authentication"])
 app.include_router(predict_routes.router, tags=["Predictions"])
 app.include_router(patient_routes.router, tags=["Patients"])
-app.include_router(analytics_routes.router, tags=["Analytics"])  
+app.include_router(analytics_routes.router, tags=["Analytics"])
+
 
 
 if __name__ == "__main__":

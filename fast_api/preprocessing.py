@@ -2,8 +2,7 @@ import re
 from transformers import AutoProcessor
 from PIL import Image
 
-# Load the processor from the merged model
-processor = AutoProcessor.from_pretrained("Awinpang/smolvlm500-finetuned-xray")
+processor = AutoProcessor.from_pretrained("Awinpang/smolvlm-chestxray-finetuned")
 
 def preprocess_image(image):
     """Convert to PIL Image if needed"""
@@ -12,52 +11,58 @@ def preprocess_image(image):
     return image
 
 def clean_prior_report(text):
-    """
-    Clean prior report by removing HISTORY, COMPARISON, and other metadata.
-    Keep only the actual findings/impression content.
-    """
+    """Clean prior report by removing metadata sections."""
     if not text:
         return text
-    
-    # Remove HISTORY section
     text = re.sub(r'(?i)history:.*?(?=comparison:|findings:|impression:|$)', '', text, flags=re.DOTALL)
-    
-    # Remove COMPARISON section
     text = re.sub(r'(?i)comparison:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
-    
-    # Remove PROCEDURE COMMENTS section
     text = re.sub(r'(?i)procedure\s+comments:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
-    
-    # Remove TECHNIQUE section
     text = re.sub(r'(?i)technique:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
-    
-    # Remove dates/times
     text = re.sub(r'\d{1,2}/\d{1,2}/\d{2,4}(?:\s+(?:at|@)\s+\d{1,2}:\d{2})?', '', text, flags=re.IGNORECASE)
-    
-    # Remove junk text
     text = re.sub(r'(?i)end\s+of\s+(?:impression|report)', '', text)
     text = re.sub(r'(?i)summary:.*?(?=impression:|$)', '', text, flags=re.DOTALL)
-    
-    # Clean whitespace
     text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
-    
-    return text
+    return text.strip()
 
-def fix_text_corruption(text):
-    """
-    Fix common text corruption issues in generated reports:
-    - Words joined together without spaces
-    - Missing spaces after punctuation
-    - Garbled section headers
-    """
+def remove_hallucinated_findings(text):
+    """Remove anatomically irrelevant findings for chest X-rays."""
     if not text:
         return text
     
-    # Fix 1: Add spaces between lowercase and uppercase (camelCase to normal)
+    irrelevant_patterns = [
+        r'demineralization of the teeth',
+        r'the teeth.*?(?=[.!?]|$)',
+        r'visual osseous structure.*?(?=\.|$)',
+        r'diffuse osteopenia of the soft tissues',
+        r'osctotic calcifications',
+        r'the liver appears normal',
+        r'the liver.*?(?=[.!?]|$)',
+        r'the patient\'s airway',
+        r'ventilator pressure.*?(?=[.!?]|$)',
+        r'soft tissue nasogastric tube is not visualized',
+        r'dental.*?(?=[.!?]|$)',
+        r'teeth.*?(?=[.!?]|$)',
+        r'sinuses appear normal',
+        r'the sinuses.*?(?=[.!?]|$)',
+    ]
+    
+    for pattern in irrelevant_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\.{2,}', '.', text)
+    text = re.sub(r'\s+\.', '.', text)
+    text = re.sub(r'\.(\s*)(?=[a-z])', r'.\1', text)
+    
+    return text.strip()
+
+def fix_text_corruption(text):
+    """Fix common text corruption issues in generated reports."""
+    if not text:
+        return text
+    
     text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
     
-    # Fix 2: Add spaces after common medical terms that might be joined
     medical_terms = [
         'assessment', 'findings', 'impression', 'limited', 'secondary',
         'evaluation', 'imaging', 'radiograph', 'examination', 'view'
@@ -68,7 +73,6 @@ def fix_text_corruption(text):
         if re.search(pattern, text, re.IGNORECASE):
             text = re.sub(pattern, rf'\1 \2', text, flags=re.IGNORECASE)
     
-    # Fix 3: Fix common corruptions from model output
     corruption_fixes = {
         'neumothorax': 'pneumothorax',
         'orotherabdominal': 'or other abdominal',
@@ -81,60 +85,44 @@ def fix_text_corruption(text):
     for wrong, correct in corruption_fixes.items():
         text = re.sub(rf'\b{wrong}\b', correct, text, flags=re.IGNORECASE)
     
-    # Fix 4: Add space before punctuation and after
     text = re.sub(r'(\.)([a-z])', r'\1 \2', text)
     text = re.sub(r'(,)([a-z])', r'\1 \2', text)
-    
-    # Fix 5: Fix multiple spaces back to single space
     text = re.sub(r' +', ' ', text)
-    
-    # Fix 6: Capitalize first letter of sentences
     text = re.sub(r'(?:^|[.!?]\s)([a-z])', lambda m: m.group(0).upper(), text)
-    
-    # Fix 7: Ensure section headers are properly formatted
     text = re.sub(r'(?i)\bfindings:', 'FINDINGS:', text)
     text = re.sub(r'(?i)\bimpression:', 'IMPRESSION:', text)
     
     return text.strip()
 
 def clean_generated_report(text):
-    """
-    Clean generated report text:
-    - Fix text corruption
-    - Remove HISTORY/COMPARISON sections
-    - Convert to lowercase
-    - Capitalize section headers
-    """
+    """Clean generated report text."""
     if not text:
         return text
     
-    # Fix corruption first
     text = fix_text_corruption(text)
-    
-    # Remove HISTORY section
     text = re.sub(r'(?i)history:.*?(?=comparison:|findings:|impression:|$)', '', text, flags=re.DOTALL)
-    
-    # Remove COMPARISON section
     text = re.sub(r'(?i)comparison:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
-    
-    # Remove PROCEDURE COMMENTS section
     text = re.sub(r'(?i)procedure\s+comments:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
     
-    # Convert to lowercase
+    headers = []
+    for match in re.finditer(r'\b(FINDINGS|IMPRESSION):', text):
+        headers.append((match.start(), match.end(), match.group(1)))
+    
     text = text.lower()
     
-    # Clean up excessive whitespace
+    for start, end, header in reversed(headers):
+        text = text[:start] + header + ':' + text[end:]
+    
     text = re.sub(r'\s+', ' ', text)
     text = text.strip()
-    
-    # Capitalize section headers
-    text = re.sub(r'\bfindings:', 'FINDINGS:', text)
-    text = re.sub(r'\bimpression:', 'IMPRESSION:', text)
+    text = re.sub(r'\bfindings:', 'FINDINGS:', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bimpression:', 'IMPRESSION:', text, flags=re.IGNORECASE)
+    text = remove_hallucinated_findings(text)
     
     return text
 
 def fix_clinical_phrasing(text):
-    """Fix common awkward clinical phrasings in generated reports"""
+    """Fix common awkward clinical phrasings."""
     if not text:
         return text
     

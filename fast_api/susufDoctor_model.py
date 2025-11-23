@@ -1,9 +1,21 @@
+# susufDoctor_model.py
 import os
-import torch
+import re
 import time
+import torch
+from difflib import SequenceMatcher
+from typing import List, Dict, Tuple
 from transformers import Idefics3ForConditionalGeneration, AutoProcessor
 from dotenv import load_dotenv
-from preprocessing import clean_prior_report, clean_generated_report, fix_clinical_phrasing, processor
+
+# Import preprocessing utilities
+from preprocessing import (
+    clean_prior_report,
+    clean_generated_report,
+    fix_clinical_phrasing,
+    remove_hallucinated_findings,
+    fix_text_corruption,
+)
 
 load_dotenv()
 
@@ -15,212 +27,293 @@ _LOADING_LOCK = False
 
 system_message = "You are an expert radiologist specialized in interpreting chest X-rays."
 
+
+# Load model
 def load_model(token=HF_TOKEN):
-    """Load merged model from Hugging Face Hub"""
     global _MODEL_CACHE, _LOADING_LOCK
-    
     if _MODEL_CACHE is not None:
-        print("Returning cached model")
         return _MODEL_CACHE
-    
     if _LOADING_LOCK:
-        print("Model is loading, waiting...")
         while _LOADING_LOCK:
-            time.sleep(0.5)
+            time.sleep(0.1)
         return _MODEL_CACHE
-    
+
     try:
         _LOADING_LOCK = True
-        print("Loading merged model from Hugging Face Hub...")
-        
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Device: {device}")
-        
-        # Load the merged model directly
         model = Idefics3ForConditionalGeneration.from_pretrained(
             MODEL_ID,
             torch_dtype=torch.bfloat16,
             device_map="auto",
             token=token
         )
-        
         model.eval()
-        
-        processor_obj = AutoProcessor.from_pretrained(
-            MODEL_ID,
-            token=token
-        )
-        
+
+        processor_obj = AutoProcessor.from_pretrained(MODEL_ID, token=token)
         _MODEL_CACHE = (processor_obj, model)
-        print("Model loaded successfully from HF Hub")
         return _MODEL_CACHE
-        
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        raise
     finally:
         _LOADING_LOCK = False
 
-def prepare_inference_input(prior_report="", age="unknown", sex="unknown", 
-                           bmi="unknown", view="unknown"):
-    """Prepare inference input with enforced FINDINGS and IMPRESSION structure"""
-    user_prompt = f"""Analyze this chest X-ray and generate a structured radiologist report.
 
-Patient information:
-- Age: {age} years
-- Sex: {sex}
-- BMI: {bmi}
-- View: {view}
+# Utility Functions
+def remove_hallucinated_metadata(text: str) -> str:
+    """Strong cleaner: removes timestamps, dates, repeated headers, '1st view...' artifacts."""
+    if not text:
+        return text
 
-Prior report (for comparison):
-{prior_report if prior_report else "No prior study available"}
+    text = re.sub(r"\|?\s*<?assistant>?\s*\|?", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<\/?assistant.*?>", "", text, flags=re.IGNORECASE)
 
-IMPORTANT: Your response MUST have TWO sections:
+    text = re.sub(
+        r"(?i)(?:first|1st)\s+view(?:\s+of\s+the\s+chest)?(?:\s+was\s+obtained.*?(?:a\.?m\.?|p\.?m\.?|$))?",
+        "",
+        text
+    )
 
-FINDINGS: Describe all visible findings including:
-- Lung fields and pulmonary vascularity
-- Cardiac silhouette and mediastinum
-- Pleural spaces and diaphragms
-- Bones and soft tissues
-- Any lines, tubes, or devices
+    # Timestamps / dates
+    text = re.sub(r"\b\d{1,2}:\d{2}(?:\s?(?:AM|PM|am|pm))?\b", "", text)
+    text = re.sub(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", "", text)
+    text = re.sub(
+        r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,\s*\d{4})?\b",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
 
-IMPRESSION: Clinical interpretation including:
-- Key abnormalities identified
-- Comparison to prior if available (e.g., "stable", "improved", "new")
-- Recommendations if needed
+    # Remove repeated headers
+    text = re.sub(r"(?i)(FINDINGS:\s*)+", "FINDINGS: ", text)
+    text = re.sub(r"(?i)(IMPRESSION:\s*)+", "IMPRESSION: ", text)
 
-Both FINDINGS and IMPRESSION sections are required. Use clear, concise medical terminology.""".strip()
+    # Remove common meta fragments
+    meta_patterns = [
+        r"report (was )?generated.*",
+        r"this report.*",
+        r"the images for this examination.*",
+        r"transcribed above.*",
+        r"the above report.*",
+        r"generated at.*",
+        r"created at.*",
+        r"signed electronically.*",
+        r"verified by.*",
+        r"dictated by.*",
+        r"approved by.*",
+    ]
+    for p in meta_patterns:
+        text = re.sub(p, "", text, flags=re.IGNORECASE)
+
+    # Remove anatomy hallucinations
+    text = re.sub(r"(?i)\b(humerus|teeth|liver|sinus|sinuses)\b.*?(?=[\.\n]|$)", "", text)
+
+    # Final cleanup
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+\.", ".", text)
+
+    return text
+
+
+def split_into_sentences(text: str) -> List[str]:
+    if not text:
+        return []
+    s = re.sub(r"\s+", " ", text).strip()
+    parts = re.split(r"(?<=[\.!?])\s+", s)
+    return [p.strip().rstrip(".") for p in parts if p.strip()]
+
+
+def normalize_sentence(s: str) -> str:
+    s = s.lower().strip()
+    s = re.sub(r"[^a-z0-9\s]", "", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def sentence_similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
+
+
+# Prior diff analysis
+def prior_diff_analysis(prior_findings: str, current_findings: str, threshold: float = 0.70):
+    prior_sents = split_into_sentences(prior_findings)
+    current_sents = split_into_sentences(current_findings)
+
+    prior_norm = [normalize_sentence(s) for s in prior_sents]
+    current_norm = [normalize_sentence(s) for s in current_sents]
+
+    matched_prior = [False] * len(prior_norm)
+    matched_current = [False] * len(current_norm)
+
+    new, resolved, stable = [], [], []
+
+    for i, cur in enumerate(current_norm):
+        best_sim = 0
+        best_j = None
+        for j, pr in enumerate(prior_norm):
+            sim = sentence_similarity(cur, pr)
+            if sim > best_sim:
+                best_sim = sim
+                best_j = j
+        if best_sim >= threshold:
+            stable.append(current_sents[i])
+            matched_current[i] = True
+            matched_prior[best_j] = True
+        else:
+            new.append(current_sents[i])
+
+    for j, m in enumerate(matched_prior):
+        if not m:
+            resolved.append(prior_sents[j])
+
+    return {"new": new, "resolved": resolved, "stable": stable, "all_findings": current_sents}
+
+
+# Structure enforcement
+def enforce_report_structure(text: str):
+    if not text:
+        return "No significant acute findings.", "No significant interval change."
+
+    text = re.sub(r"(?i)findings\s*:", "FINDINGS:", text)
+    text = re.sub(r"(?i)impression\s*:", "IMPRESSION:", text)
+
+    m = re.search(r"IMPRESSION\s*:", text)
+    if m:
+        findings = text[:m.start()].replace("FINDINGS:", "").strip()
+        impression = text[m.end():].strip()
+        return findings, impression
+
+    sents = split_into_sentences(text)
+    split = max(1, len(sents) // 2)
+    return ". ".join(sents[:split]), ". ".join(sents[split:])
+
+
+def format_structured_report(findings: str, impression: str):
+    return f"FINDINGS:\n{findings}\n\nIMPRESSION:\n{impression}"
+
+
+# Comparison language enhancer
+def enhance_comparison_language(text: str):
+    if not text:
+        return text
+
+    replacements = {
+        r"is (still|again) seen": "is unchanged",
+        r"looks (the same|similar)": "unchanged",
+        r"has (increased|grown|worsened)": "interval increase in",
+        r"has (decreased|improved|resolved)": "interval decrease in",
+        r"not seen (before|previously|on prior)": "new",
+        r"no longer (seen|visible|present)": "resolved",
+        r"is present": "is identified",
+    }
+    for p, rpl in replacements.items():
+        text = re.sub(p, rpl, text, flags=re.IGNORECASE)
+
+    return text
+
+
+# Main prediction
+def predict_report(
+    model_bundle,
+    image,
+    prior_text="",
+    bmi="unknown",
+    age="unknown",
+    sex="unknown",
+    view_type="unknown",
+    max_new_tokens=420,
+    min_new_tokens=140,
+    num_beams=4,
+    torch_seed=42,
+):
+
+    processor_obj, model = model_bundle
+    device = model.device
+
+    torch.manual_seed(torch_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(torch_seed)
+
+    t0 = time.time()
+
+    # clean prior findings (ONLY findings)
+    prior_clean = clean_prior_report(prior_text)
+    prior_clean = re.sub(r"(?i).*?FINDINGS:", "", prior_clean)
+    prior_clean = re.sub(r"(?i)IMPRESSION:.*", "", prior_clean).strip()
+
+    # No “comparison is made”
+    # Instead: generate new labeled findings based on differences
+    user_prompt = f"""
+Generate a detailed chest X-ray report using automatic interval labels (new, resolved, unchanged, interval increase, interval decrease).
+
+Prior findings for comparison (do not copy, only use to determine interval change):
+{prior_clean if prior_clean else "No prior study available"}
+
+CRITICAL RULES:
+- Do NOT include phrases like "comparison is made to the prior study".
+- Describe each finding using interval labels.
+- DO NOT produce timestamps, dates, or acquisition details.
+- STRUCTURE OUTPUT AS:
+
+FINDINGS:
+<list of labeled findings>
+
+IMPRESSION:
+<concise summary>
+""".strip()
 
     messages = [
-        {
-            "role": "system",
-            "content": [{"type": "text", "text": system_message}]
-        },
-        {
-            "role": "user", 
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {"type": "image", "image": None}
-            ]
-        }
+        {"role": "system", "content": [{"type": "text", "text": system_message}]},
+        {"role": "user", "content": [{"type": "image"}, {"type": "text", "text": user_prompt}]},
     ]
-    
-    return messages, user_prompt
 
-def predict_report(model_bundle, image, prior_text="", bmi="unknown", age="unknown", 
-                  sex="unknown", view_type="unknown", max_new_tokens=512, 
-                  temperature=0.3, top_p=0.8):
-    """
-    Generate chest X-ray report.
-    
-    Args:
-        model_bundle: (processor, model) tuple from load_model()
-        image: PIL Image object
-        prior_text: Full prior report text (optional)
-        bmi: Patient BMI
-        age: Patient age
-        sex: Patient sex
-        view_type: X-ray view type
-        max_new_tokens: Max tokens to generate
-        temperature: Generation temperature
-        top_p: Top-p sampling
-        
-    Returns:
-        Dictionary with generated report
-    """
-    try:
-        processor_obj, model = model_bundle
-        
-        print("Generating report...")
-        start_time = time.time()
-        
-        # Clean prior report if provided
-        if prior_text and prior_text.strip():
-            prior_text = clean_prior_report(prior_text)
-            print(f"Prior report cleaned. Length: {len(prior_text)} chars")
-        
-        # Prepare input in training format
-        messages, user_prompt = prepare_inference_input(
-            prior_text, age, sex, bmi, view_type
+    prompt_base = processor_obj.apply_chat_template(messages, add_generation_prompt=False, tokenize=False)
+    assistant_start = "\nFINDINGS:\n"
+    full_prompt_text = prompt_base + assistant_start
+
+    inputs = processor_obj(text=full_prompt_text, images=[image], return_tensors="pt").to(device)
+    prefix_len = processor_obj(text=prompt_base, images=[image], return_tensors="pt")["input_ids"].shape[1]
+
+    badwords = ["summary", "sumary", "humerus", "teeth", "liver", "sinus"]
+    bad_ids = []
+    for b in badwords:
+        try:
+            tid = processor_obj.tokenizer.convert_tokens_to_ids(b)
+            bad_ids.append([tid] if isinstance(tid, int) else tid)
+        except:
+            pass
+
+    with torch.no_grad():
+        out = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            min_new_tokens=min_new_tokens,
+            num_beams=num_beams,
+            do_sample=False,
+            no_repeat_ngram_size=4,
+            repetition_penalty=1.2,
+            early_stopping=True,
+            bad_words_ids=bad_ids if bad_ids else None,
+            pad_token_id=processor_obj.tokenizer.eos_token_id,
+            eos_token_id=processor_obj.tokenizer.eos_token_id,
         )
-        
-        # Create prompt messages (without assistant)
-        prompt_messages = [
-            {
-                "role": "system",
-                "content": [{"type": "text", "text": system_message}]
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_prompt},
-                    {"type": "image"}
-                ]
-            }
-        ]
-        
-        # Apply chat template
-        prompt_text = processor_obj.apply_chat_template(
-            prompt_messages,
-            add_generation_prompt=True,
-            tokenize=False
-        )
-        
-        print(f"Prompt length: {len(prompt_text)} chars")
-        
-        # Process inputs
-        inputs = processor_obj(
-            text=prompt_text,
-            images=[image],
-            return_tensors="pt",
-            padding=True
-        ).to(model.device)
-        
-        print("Generating FINDINGS and IMPRESSION...")
-        
-        # Generate report
-        with torch.no_grad():
-            generated_ids = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=True,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=50,
-                repetition_penalty=1.2,
-                pad_token_id=processor_obj.tokenizer.eos_token_id,
-                eos_token_id=processor_obj.tokenizer.eos_token_id,
-                early_stopping=True,
-            )
-        
-        # Decode only newly generated tokens
-        prompt_length = inputs["input_ids"].shape[1]
-        generated_tokens = generated_ids[0, prompt_length:]
-        response = processor_obj.decode(generated_tokens, skip_special_tokens=True).strip()
-        
-        # Clean the response
-        cleaned_response = clean_generated_report(response)
-        cleaned_response = fix_clinical_phrasing(cleaned_response)
-        
-        generation_time = time.time() - start_time
-        
-        print(f"Completed in {generation_time:.1f}s")
-        print(f"Report length: {len(cleaned_response)} chars")
-        
-        return {
-            "full_text": cleaned_response,
-            "generation_time": generation_time,
-            "mode": "baseline"
-        }
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        return {
-            "full_text": "FINDINGS: Technical error during report generation.\n\nIMPRESSION: Clinical correlation recommended.",
-            "error": str(e),
-            "generation_time": 0,
-            "mode": "baseline"
-        }
+
+    gen_tokens = out[0, prefix_len:]
+    raw = processor_obj.decode(gen_tokens, skip_special_tokens=True).strip()
+
+    raw = remove_hallucinated_metadata(raw)
+    raw = clean_generated_report(raw)
+    raw = fix_clinical_phrasing(raw)
+    raw = enhance_comparison_language(raw)
+
+    findings, impression = enforce_report_structure(raw)
+
+    changes = prior_diff_analysis(prior_clean, findings)
+
+    full_report = format_structured_report(findings, impression)
+    t1 = time.time()
+
+    return {
+        "raw": raw,
+        "findings": findings,
+        "impression": impression,
+        "full_text": full_report,
+        "changes": changes,
+        "generation_time": t1 - t0,
+        "mode": "longitudinal_auto_labeling",
+    }
