@@ -15,7 +15,7 @@ SusufDoctor is an intelligent web application that replicates the radiologist’
 
 - Susuf Doctor Web App: https://susuf-doctor.vercel.app/
   
-- Susuf Doctor backend(Fast api): https://susufdoctor-model-api.onrender.com
+- Susuf Doctor backend(Fast api):https://susufdoctorbackend-100056520598.europe-west1.run.app/docs
 
 
 ## Repository  
@@ -53,7 +53,7 @@ Click this button to open the notebook on colab: https://colab.research.google.c
 | Backend | FastAPI (Python) |
 | Database | Firestore (Google Cloud) |
 | Storage | Google Cloud Storage |
-| Deployment | Render (API) & Vercel (Frontend) |
+| Deployment | Google cloud RUn & Vercel (Frontend) |
 | Model | AI-based Radiology Report Generator |
 
 ## Prerequisites
@@ -93,7 +93,10 @@ ALGORITHM=HS256
 ```
 
 5. Run the backend server
+ ```
 uvicorn main:app --reload
+```
+NB: The  backend will be available at: http://127.0.0.1:8000
 
 # Frontend Setup (React + Vite)
 
@@ -126,3 +129,4 @@ npm install
 ```
 npm run dev
 ```
+The  frontend will be available at: http://localhost:5173
