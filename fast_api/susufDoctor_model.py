@@ -42,13 +42,19 @@ def load_model(token=HF_TOKEN):
         _LOADING_LOCK = True
         model = Idefics3ForConditionalGeneration.from_pretrained(
             MODEL_ID,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.bfloat32,
             device_map="auto",
             token=token
+             
         )
         model.eval()
 
-        processor_obj = AutoProcessor.from_pretrained(MODEL_ID, token=token)
+        processor_obj = AutoProcessor.from_pretrained(
+    MODEL_ID,
+    use_fast=False,
+    trust_remote_code=True,
+    token=token
+)
         _MODEL_CACHE = (processor_obj, model)
         return _MODEL_CACHE
     finally:
