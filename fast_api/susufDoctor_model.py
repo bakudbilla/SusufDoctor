@@ -42,7 +42,7 @@ def load_model(token=HF_TOKEN):
         _LOADING_LOCK = True
         model = Idefics3ForConditionalGeneration.from_pretrained(
             MODEL_ID,
-            torch_dtype=torch.bfloat32,
+            torch_dtype=torch.bfloat16,
             device_map="auto",
             token=token
              
