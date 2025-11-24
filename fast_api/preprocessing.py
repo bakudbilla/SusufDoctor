@@ -2,7 +2,7 @@ import re
 from transformers import AutoProcessor
 from PIL import Image
 
-processor = AutoProcessor.from_pretrained("Awinpang/smolvlm-chestxray-finetuned")
+processor = AutoProcessor.from_pretrained("Awinpang/smolvlm500-finetuned-xray")
 
 def preprocess_image(image):
     """Convert to PIL Image if needed"""
@@ -95,31 +95,61 @@ def fix_text_corruption(text):
     return text.strip()
 
 def clean_generated_report(text):
-    """Clean generated report text."""
+    """Clean and normalize generated chest X-ray reports."""
     if not text:
         return text
     
+    # Step 1 — Fix capitalization, spacing, corruption
     text = fix_text_corruption(text)
-    text = re.sub(r'(?i)history:.*?(?=comparison:|findings:|impression:|$)', '', text, flags=re.DOTALL)
+
+    # Step 2 — Remove any SUMMARY sections (strict)
+    text = re.sub(r'(?i)summary\s*[\d:.-]*.*?(?=impression:|findings:|$)', '', text, flags=re.DOTALL)
+
+    # Also delete inline summary phrases
+    summary_phrases = [
+        r"summary\s*\d*[:\-]?",
+        r"this is the output i am getting.*",
+        r"go ahead if you have additional findings.*",
+        r"possibly related to underlying disease.*",
+        r"but not specifically limited to this study.*",
+    ]
+    for pattern in summary_phrases:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+
+    # Step 3 — Remove other irrelevant LLM gibberish
+    gibberish_patterns = [
+        r"if you have additional findings.*",
+        r"would you like to suggest a name.*",
+        r"this section.*?(?=[.!?]|$)",
+        r"note that this is automatically generated.*",
+        r"based on the context of the study.*",
+    ]
+    for pattern in gibberish_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+
+    # Step 4 — Remove metadata sections
+    text = re.sub(r'(?i)history:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
     text = re.sub(r'(?i)comparison:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
     text = re.sub(r'(?i)procedure\s+comments:.*?(?=findings:|impression:|$)', '', text, flags=re.DOTALL)
-    
-    headers = []
-    for match in re.finditer(r'\b(FINDINGS|IMPRESSION):', text):
-        headers.append((match.start(), match.end(), match.group(1)))
-    
+
+    # Step 5 — Force correct header formatting
     text = text.lower()
-    
-    for start, end, header in reversed(headers):
-        text = text[:start] + header + ':' + text[end:]
-    
-    text = re.sub(r'\s+', ' ', text)
-    text = text.strip()
     text = re.sub(r'\bfindings:', 'FINDINGS:', text, flags=re.IGNORECASE)
     text = re.sub(r'\bimpression:', 'IMPRESSION:', text, flags=re.IGNORECASE)
+
+    # Step 6 — Remove hallucinated or anatomically irrelevant content
     text = remove_hallucinated_findings(text)
-    
-    return text
+
+    # Step 7 — Clean whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    # Step 8 — Ensure FINDINGS/IMPRESSION appear at correct positions
+    # If only impression is present, keep it
+    if "FINDINGS:" not in text and "IMPRESSION:" in text:
+        text = "FINDINGS: No acute abnormality.\n" + text
+
+    return text.strip()
+
 
 def fix_clinical_phrasing(text):
     """Fix common awkward clinical phrasings."""
