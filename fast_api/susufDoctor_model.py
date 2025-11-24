@@ -28,11 +28,13 @@ _LOADING_LOCK = False
 system_message = "You are an expert radiologist specialized in interpreting chest X-rays."
 
 
-# Load model
+# Load model (GPU-safe, Cloud Run optimized)
 def load_model(token=HF_TOKEN):
     global _MODEL_CACHE, _LOADING_LOCK
+
     if _MODEL_CACHE is not None:
         return _MODEL_CACHE
+
     if _LOADING_LOCK:
         while _LOADING_LOCK:
             time.sleep(0.1)
@@ -40,25 +42,48 @@ def load_model(token=HF_TOKEN):
 
     try:
         _LOADING_LOCK = True
+
+        # Detect device
+        has_cuda = torch.cuda.is_available()
+        device = "cuda" if has_cuda else "cpu"
+
+        print(" Loading Idefics model...")
+        print("CUDA available:", has_cuda)
+        if has_cuda:
+            print("GPU:", torch.cuda.get_device_name(0))
+
+        # Select dtype safely
+        torch_dtype = torch.float16 if has_cuda else torch.float32
+
+        # Load model ONCE
         model = Idefics3ForConditionalGeneration.from_pretrained(
             MODEL_ID,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-            token=token
-             
-        )
-        model.eval()
+            torch_dtype=torch_dtype,
+            device_map={"": device},    
+            low_cpu_mem_usage=True,
+            token=token,
+            trust_remote_code=True
+        ).eval()
 
+        # Load processor
         processor_obj = AutoProcessor.from_pretrained(
-    MODEL_ID,
-    use_fast=False,
-    trust_remote_code=True,
-    token=token
-)
+            MODEL_ID,
+            use_fast=False,
+            trust_remote_code=True,
+            token=token
+        )
+
         _MODEL_CACHE = (processor_obj, model)
+        print("Model fully loaded on:", device)
         return _MODEL_CACHE
+
+    except Exception as e:
+        print(" MODEL LOAD ERROR:", e)
+        raise e
+
     finally:
         _LOADING_LOCK = False
+
 
 
 # Utility Functions
