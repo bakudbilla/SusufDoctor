@@ -51,8 +51,8 @@ def load_model(token=HF_TOKEN):
 
         processor_obj = AutoProcessor.from_pretrained(
     MODEL_ID,
-    # use_fast=False,
-    # trust_remote_code=True,
+    use_fast=False,
+    trust_remote_code=True,
     token=token
 )
         _MODEL_CACHE = (processor_obj, model)
