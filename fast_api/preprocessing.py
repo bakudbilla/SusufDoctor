@@ -108,6 +108,19 @@ def clean_generated_report(text):
     if not text:
         return text
 
+    findings_match = re.search(
+        r'(FINDINGS:\s*)(.*?)(?=IMPRESSION:|$)',
+        text,
+        flags=re.IGNORECASE | re.DOTALL
+    )
+
+    findings_header = "FINDINGS:"
+    findings_content = ""
+
+    if findings_match:
+        findings_content = findings_match.group(2).strip()
+
+    
     text = fix_text_corruption(text)
     text = remove_summary_sections(text)
 
@@ -122,11 +135,14 @@ def clean_generated_report(text):
     text = remove_hallucinated_findings(text)
     text = re.sub(r'\s+', ' ', text).strip()
 
-    # add missing findings
-    if "FINDINGS:" not in text and "IMPRESSION:" in text:
-        text = "FINDINGS: No acute abnormality. " + text
+    # STEP 1 — RESTORE FINDINGS IF IT GOT DELETED
+    if "FINDINGS:" not in text:
+        if findings_content:
+            text = f"FINDINGS: {findings_content} " + text
+        else:
+            text = "FINDINGS: No acute abnormality. " + text
 
-    #Convert everything AFTER "IMPRESSION:" to lowercase
+    # STEP 2 — LOWERCASE EVERYTHING AFTER IMPRESSION:
     match = re.search(r'(IMPRESSION:\s*)(.*)', text, flags=re.IGNORECASE | re.DOTALL)
     if match:
         header = match.group(1)
@@ -134,6 +150,7 @@ def clean_generated_report(text):
         text = header + content
 
     return text.strip()
+
 
 
 # PHRASE FIXER 
