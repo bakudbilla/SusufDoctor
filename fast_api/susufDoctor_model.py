@@ -28,7 +28,7 @@ _LOADING_LOCK = False
 system_message = "You are an expert radiologist specialized in interpreting chest X-rays."
 
 
-# Load model (GPU-safe, Cloud Run optimized)
+# Load model 
 def load_model(token=HF_TOKEN):
     global _MODEL_CACHE, _LOADING_LOCK
 
