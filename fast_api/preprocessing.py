@@ -43,23 +43,6 @@ def remove_summary_sections(text: str) -> str:
 
 
 # -----------------------------------------------------
-# REMOVE DUPLICATE FINDINGS HEADER
-# -----------------------------------------------------
-def remove_duplicate_findings_header(text):
-    """Remove repeated or duplicated FINDINGS headers."""
-    if not text:
-        return text
-
-    # FINDINGS:FINDINGS:
-    text = re.sub(r'(?i)FINDINGS:\s*FINDINGS:\s*', 'FINDINGS: ', text)
-
-    # FINDINGS: on two lines
-    text = re.sub(r'(?i)(FINDINGS:\s*)(\s*FINDINGS:\s*)', r'\1', text)
-
-    return text.strip()
-
-
-# -----------------------------------------------------
 # CLEAN PRIOR REPORT
 # -----------------------------------------------------
 def clean_prior_report(text):
@@ -116,7 +99,7 @@ def remove_hallucinated_findings(text):
 
 
 # -----------------------------------------------------
-# FIX CORRUPT TEXT
+# FIX TEXT CORRUPTION
 # -----------------------------------------------------
 def fix_text_corruption(text):
     """Fix common text corruption issues in generated reports."""
@@ -153,7 +136,7 @@ def fix_text_corruption(text):
 
 
 # -----------------------------------------------------
-# NORMALIZE IMPRESSION (MULTILINE SAFE)
+# NORMALIZE IMPRESSION TO LOWERCASE  (MULTILINE SAFE)
 # -----------------------------------------------------
 def normalize_impression_case(text):
     """Convert only the IMPRESSION section content to lowercase (multiline)."""
@@ -181,10 +164,6 @@ def clean_generated_report(text):
         return text
 
     text = fix_text_corruption(text)
-
-    # NEW: Remove duplicated FINDINGS headers
-    text = remove_duplicate_findings_header(text)
-
     text = remove_summary_sections(text)
 
     gibberish_patterns = [
@@ -204,7 +183,7 @@ def clean_generated_report(text):
     if "FINDINGS:" not in text and "IMPRESSION:" in text:
         text = "FINDINGS: No acute abnormality. " + text
 
-    # Normalize IMPRESSION to lowercase
+    # APPLY LOWERCASE NORMALIZATION TO IMPRESSION
     text = normalize_impression_case(text)
 
     return text.strip()
