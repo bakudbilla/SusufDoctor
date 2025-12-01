@@ -40,7 +40,6 @@ Click this button to open the notebook on colab: https://colab.research.google.c
 ```bash
 - git clone https://github.com/bakudbilla/SusufDoctor.git
 - cd SusufDoctor
-- pip install -r requirements.txt
 ```
 - Run the notebook file
 
