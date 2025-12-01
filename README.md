@@ -5,14 +5,13 @@ SusufDoctor is an intelligent web application that replicates the radiologist’
 
 <img width="1359" height="647" alt="Screenshot 2025-11-20 230649" src="https://github.com/user-attachments/assets/f235727f-9d84-45a1-8243-46557468b94d" />
 
-
-<img width="1351" height="621" alt="Screenshot 2025-11-16 153707" src="https://github.com/user-attachments/assets/f79c6ac2-4e01-44e5-9f0f-5c09d89d16cf" />
-
  In the application, The Radiologist Dashboard is where reports are generated and patient data is managed
  
 <img width="1361" height="526" alt="image" src="https://github.com/user-attachments/assets/6f6c366c-9cbd-4731-a87b-e8f48bb5adb0" />
 
 <img width="1259" height="508" alt="Screenshot 2025-11-11 133245" src="https://github.com/user-attachments/assets/441baf5f-3211-47fe-8a5f-4971bff9429f" />
+
+<img width="1363" height="535" alt="image" src="https://github.com/user-attachments/assets/ad8527d7-ebfd-4a39-883b-2756aec71759" />
 
 
 - Initial Software solution Demmo can be found here: https://youtube/lUa4ap6wx6A
