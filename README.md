@@ -33,15 +33,19 @@ GitHub repo:  https://github.com/bakudbilla/SusufDoctor/
 
 ##  Setup & Environment  
 
-### Option 1: Open in Colab  
-Click this button to open the notebook on colab: https://colab.research.google.com/drive/1VoKGHSeq9YBj_OPvWF6PXs52tBRlDiPM?usp=sharing
-### Option 2: Running on Vscode
+### Running the notebook
 - Clone repository
 ```bash
 - git clone https://github.com/bakudbilla/SusufDoctor.git
 - cd SusufDoctor
 ```
-- Run the notebook file
+- move into notebook directory
+  ```
+  cd notebooks
+  
+  ```
+- select the notebook you want to run
+- Run the notebook on Vscode , jupyter notebook or colab
 
 # SuSufDoctor WEP APP SETUP
 
