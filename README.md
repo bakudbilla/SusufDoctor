@@ -1,4 +1,4 @@
-# SusufDoctor (https://susuf-doctor.vercel.app/)
+# SusufDoctor 
 SusufDoctor is an intelligent web application that replicates the radiologist’s workflow by generating comprehensive chest X-ray reports. It integrates current and prior scans with patient metadata for longitudinal, context-aware analysis, uses a single transformer decoder to generate a full radiology report. The Chexpert plus dataset was used for this project. It was then processed into the longitudinal format, suitable for both single report generation and longitudinal. Dataset can be found here: https://aimi.stanford.edu/datasets/chexpert-plus
 
 <img width="1365" height="611" alt="Screenshot 2025-11-07 181238" src="https://github.com/user-attachments/assets/35657c32-16b2-4c62-85ad-3496973b91e7" />
@@ -137,6 +137,6 @@ npm run dev
 ```
 The  frontend will be available at: http://localhost:5173
 
-#Project Results
+# Project Results
 
 The proposed SuSufDoctor system achieved significant performance improvements after fine-tuning the SmolVLM-500M model using LoRA and 4-bit quantization. The model’s BLEU score improved from 1.29% to 61.53%, ROUGE-L from 8.26% to 66.08%, and BERTScore (F1) from 80.48% to 93.92%, demonstrating strong gains in both linguistic quality and semantic accuracy of generated reports. The deployed web system generates structured radiology reports with longitudinal comparison in 5–30 seconds per case, and all outputs are validated by radiologists through a built-in editing workflow. These results confirm the system’s effectiveness as a fast, reliable clinical decision-support tool for low-resource healthcare settings.
